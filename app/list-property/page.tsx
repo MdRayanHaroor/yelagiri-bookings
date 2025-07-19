@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { X, Plus, Building, MapPin, Star, Bed } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { X, Plus, Building, MapPin, Star, Home } from "lucide-react"
 import { useState } from "react"
 import { supabase } from "@/lib/supabase"
 
@@ -21,7 +22,7 @@ interface PropertyFormData {
   short_description: string
   category: string
 
-  // Location (remove latitude and longitude)
+  // Location
   address: string
   area: string
 
@@ -43,31 +44,37 @@ interface PropertyFormData {
   owner_phone: string
   owner_email: string
 
-  // Amenities
-  amenities: string[]
-  kitchen_amenities: string[]
-
-  // Room Types with toilet information
-  room_types: RoomType[]
+  // Individual Rooms
+  individual_rooms: IndividualRoom[]
 
   // Food Delivery Details
   food_delivery_details: string
 }
 
-interface RoomType {
-  name: string
-  description: string
+interface IndividualRoom {
+  id: string
+  room_name: string
+  floor: string
+  room_type: string // 'single', 'double', 'suite', etc.
   max_occupancy: string
   base_price: string
-  total_rooms: string
-  bed_type: string
-  has_ac: boolean
-  has_wifi: boolean
-  has_tv: boolean
-  has_balcony: boolean
-  // New toilet fields
-  toilet_type: string // 'attached' or 'common'
+
+  // Toilet facilities
+  has_attached_toilet: boolean
   toilet_count: string
+
+  // Furniture & Bedding
+  bed_type: string // 'single', 'double', 'queen', 'king'
+  has_mattress: boolean
+  has_cupboard: boolean
+
+  // Electrical & Comfort
+  has_ac: boolean
+  has_ceiling_fan: boolean
+  has_balcony_access: boolean
+
+  // Additional amenities
+  room_amenities: string[]
 }
 
 const validateEmail = (email: string) => {
@@ -109,15 +116,14 @@ const validateForm = (step: number, formData: PropertyFormData) => {
   }
 
   if (step === 4) {
-    if (formData.room_types.length === 0) errors.push("At least one room type is required")
-    formData.room_types.forEach((room, index) => {
-      if (!room.name.trim()) errors.push(`Room type ${index + 1}: Name is required`)
+    if (formData.individual_rooms.length === 0) errors.push("At least one room must be added")
+    formData.individual_rooms.forEach((room, index) => {
+      if (!room.room_name.trim()) errors.push(`Room ${index + 1}: Room name is required`)
       if (!room.base_price || Number.parseFloat(room.base_price) <= 0)
-        errors.push(`Room type ${index + 1}: Valid price is required`)
-      if (!room.total_rooms || Number.parseInt(room.total_rooms) <= 0)
-        errors.push(`Room type ${index + 1}: Valid number of rooms is required`)
+        errors.push(`Room ${index + 1}: Valid price is required`)
+      if (!room.floor.trim()) errors.push(`Room ${index + 1}: Floor is required`)
       if (!room.toilet_count || Number.parseInt(room.toilet_count) <= 0)
-        errors.push(`Room type ${index + 1}: Valid toilet count is required`)
+        errors.push(`Room ${index + 1}: Valid toilet count is required`)
     })
   }
 
@@ -143,44 +149,30 @@ const CATEGORIES = [
   { value: "eco", label: "Eco Resort" },
 ]
 
-const AMENITIES = [
-  "Free WiFi",
-  "Swimming Pool",
-  "Restaurant",
-  "Free Parking",
-  "Air Conditioning",
-  "Spa Services",
-  "Gym/Fitness Center",
-  "24/7 Room Service",
-  "Conference Hall",
-  "Kids Play Area",
-  "Garden/Lawn",
-  "Travel Desk",
-  "Doctor on Call",
-  "Bonfire Area",
-  "Adventure Sports",
-  "Pet Friendly",
-  "Carrom",
-  "Cycles",
-  "Terrace",
-  "Smart TV",
-  "TV (Normal)",
-  "Heater (Hot Water)",
-  "Food Delivery",
-]
-
-const KITCHEN_AMENITIES = [
-  "Gas Stove",
-  "Electric Stove",
-  "Refrigerator",
-  "Microwave",
-  "Kitchen Utensils",
-  "Dining Table",
-  "Water Purifier",
-  "Induction Cooktop",
+const ROOM_TYPES = [
+  { value: "single", label: "Single Room" },
+  { value: "double", label: "Double Room" },
+  { value: "deluxe", label: "Deluxe Room" },
+  { value: "suite", label: "Suite" },
+  { value: "family", label: "Family Room" },
 ]
 
 const BED_TYPES = ["Single", "Double", "Queen", "King", "Twin"]
+
+const ROOM_AMENITIES = [
+  "WiFi",
+  "TV",
+  "Mini Fridge",
+  "Tea/Coffee Maker",
+  "Room Service",
+  "Laundry Service",
+  "Iron/Ironing Board",
+  "Hair Dryer",
+  "Safe",
+  "Telephone",
+  "Desk/Work Area",
+  "Sofa/Seating Area",
+]
 
 export default function ListPropertyPage() {
   const [formData, setFormData] = useState<PropertyFormData>({
@@ -200,24 +192,7 @@ export default function ListPropertyPage() {
     owner_name: "",
     owner_phone: "",
     owner_email: "",
-    amenities: [],
-    kitchen_amenities: [],
-    room_types: [
-      {
-        name: "",
-        description: "",
-        max_occupancy: "2",
-        base_price: "",
-        total_rooms: "",
-        bed_type: "Double",
-        has_ac: true,
-        has_wifi: true,
-        has_tv: true,
-        has_balcony: false,
-        toilet_type: "attached",
-        toilet_count: "1",
-      },
-    ],
+    individual_rooms: [],
     food_delivery_details: "",
   })
 
@@ -225,60 +200,120 @@ export default function ListPropertyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [formErrors, setFormErrors] = useState<string[]>([])
+  const [showRoomDialog, setShowRoomDialog] = useState(false)
+  const [editingRoomIndex, setEditingRoomIndex] = useState<number | null>(null)
+  const [currentRoom, setCurrentRoom] = useState<IndividualRoom>({
+    id: "",
+    room_name: "",
+    floor: "",
+    room_type: "double",
+    max_occupancy: "2",
+    base_price: "",
+    has_attached_toilet: true,
+    toilet_count: "1",
+    bed_type: "Double",
+    has_mattress: true,
+    has_cupboard: true,
+    has_ac: false,
+    has_ceiling_fan: true,
+    has_balcony_access: false,
+    room_amenities: [],
+  })
 
   const handleInputChange = (field: keyof PropertyFormData, value: string | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleAmenityToggle = (amenity: string) => {
-    setFormData((prev) => ({
+  const handleRoomInputChange = (field: keyof IndividualRoom, value: string | boolean | string[]) => {
+    setCurrentRoom((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleRoomAmenityToggle = (amenity: string) => {
+    setCurrentRoom((prev) => ({
       ...prev,
-      amenities: prev.amenities.includes(amenity)
-        ? prev.amenities.filter((a) => a !== amenity)
-        : [...prev.amenities, amenity],
+      room_amenities: prev.room_amenities.includes(amenity)
+        ? prev.room_amenities.filter((a) => a !== amenity)
+        : [...prev.room_amenities, amenity],
     }))
   }
 
-  const addRoomType = () => {
+  const openRoomDialog = (index?: number) => {
+    if (index !== undefined) {
+      setEditingRoomIndex(index)
+      setCurrentRoom(formData.individual_rooms[index])
+    } else {
+      setEditingRoomIndex(null)
+      setCurrentRoom({
+        id: Date.now().toString(),
+        room_name: "",
+        floor: "",
+        room_type: "double",
+        max_occupancy: "2",
+        base_price: "",
+        has_attached_toilet: true,
+        toilet_count: "1",
+        bed_type: "Double",
+        has_mattress: true,
+        has_cupboard: true,
+        has_ac: false,
+        has_ceiling_fan: true,
+        has_balcony_access: false,
+        room_amenities: [],
+      })
+    }
+    setShowRoomDialog(true)
+  }
+
+  const saveRoom = () => {
+    if (!currentRoom.room_name.trim() || !currentRoom.base_price || !currentRoom.floor.trim()) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    setFormData((prev) => {
+      const newRooms = [...prev.individual_rooms]
+      if (editingRoomIndex !== null) {
+        newRooms[editingRoomIndex] = currentRoom
+      } else {
+        newRooms.push(currentRoom)
+      }
+      return { ...prev, individual_rooms: newRooms }
+    })
+
+    setShowRoomDialog(false)
+    setEditingRoomIndex(null)
+  }
+
+  const removeRoom = (index: number) => {
     setFormData((prev) => ({
       ...prev,
-      room_types: [
-        ...prev.room_types,
-        {
-          name: "",
-          description: "",
-          max_occupancy: "2",
-          base_price: "",
-          total_rooms: "",
-          bed_type: "Double",
-          has_ac: true,
-          has_wifi: true,
-          has_tv: true,
-          has_balcony: false,
-          toilet_type: "attached",
-          toilet_count: "1",
-        },
-      ],
+      individual_rooms: prev.individual_rooms.filter((_, i) => i !== index),
     }))
   }
 
-  const removeRoomType = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      room_types: prev.room_types.filter((_, i) => i !== index),
-    }))
-  }
+  // Calculate general amenities from individual rooms
+  const getGeneralAmenities = () => {
+    const amenities = new Set<string>()
 
-  const updateRoomType = (index: number, field: keyof RoomType, value: string | boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      room_types: prev.room_types.map((room, i) => (i === index ? { ...room, [field]: value } : room)),
-    }))
+    formData.individual_rooms.forEach((room) => {
+      if (room.has_ac) amenities.add("Air Conditioning")
+      if (room.has_ceiling_fan) amenities.add("Ceiling Fan")
+      if (room.has_balcony_access) amenities.add("Balcony Access")
+      if (room.has_attached_toilet) amenities.add("Attached Bathroom")
+      if (room.has_cupboard) amenities.add("Cupboard/Wardrobe")
+
+      room.room_amenities.forEach((amenity) => amenities.add(amenity))
+    })
+
+    return Array.from(amenities)
   }
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
     try {
+      // Calculate general amenities from rooms
+      const generalAmenities = getGeneralAmenities()
+
       // Create property submission record
       const propertyData = {
         name: formData.name,
@@ -290,10 +325,10 @@ export default function ListPropertyPage() {
         email: formData.email,
         website: formData.website || null,
         starting_price: Number.parseFloat(formData.starting_price),
-        total_rooms: Number.parseInt(formData.total_rooms),
+        total_rooms: formData.individual_rooms.length, // Use actual room count
         check_in_time: formData.check_in_time,
         check_out_time: formData.check_out_time,
-        status: "pending", // Will be reviewed by admin
+        status: "pending",
         is_featured: false,
         is_verified: false,
         slug: formData.name
@@ -305,14 +340,12 @@ export default function ListPropertyPage() {
           phone: formData.owner_phone,
           email: formData.owner_email,
         },
-        amenities: formData.amenities,
-        kitchen_amenities: formData.kitchen_amenities,
-        room_types: formData.room_types,
+        amenities: generalAmenities, // Auto-calculated from rooms
+        individual_rooms: formData.individual_rooms,
         submission_date: new Date().toISOString(),
         food_delivery_details: formData.food_delivery_details,
       }
 
-      // Store in a separate table for admin review
       const { error } = await supabase.from("property_submissions").insert([propertyData])
 
       if (error) {
@@ -407,8 +440,8 @@ export default function ListPropertyPage() {
                   : currentStep === 2
                     ? "Location & Contact"
                     : currentStep === 3
-                      ? "Amenities & Features"
-                      : "Room Types & Review"}
+                      ? "Additional Features"
+                      : "Individual Rooms & Review"}
               </div>
             </div>
           </div>
@@ -487,7 +520,7 @@ export default function ListPropertyPage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="total_rooms">Total Rooms *</Label>
+                      <Label htmlFor="total_rooms">Expected Total Rooms *</Label>
                       <Input
                         id="total_rooms"
                         type="number"
@@ -495,6 +528,9 @@ export default function ListPropertyPage() {
                         onChange={(e) => handleInputChange("total_rooms", e.target.value)}
                         placeholder="10"
                       />
+                      <p className="text-xs text-gray-500 mt-1">
+                        This will be updated based on individual rooms you add later
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -536,8 +572,6 @@ export default function ListPropertyPage() {
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {/* Remove the latitude/longitude section completely */}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -611,52 +645,9 @@ export default function ListPropertyPage() {
             {currentStep === 3 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Amenities & Features</CardTitle>
+                  <CardTitle>Additional Features</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div>
-                    <Label>Select Available Amenities</Label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
-                      {AMENITIES.map((amenity) => (
-                        <div key={amenity} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={amenity}
-                            checked={formData.amenities.includes(amenity)}
-                            onCheckedChange={() => handleAmenityToggle(amenity)}
-                          />
-                          <Label htmlFor={amenity} className="text-sm">
-                            {amenity}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label>Kitchen Amenities (if applicable)</Label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
-                      {KITCHEN_AMENITIES.map((amenity) => (
-                        <div key={amenity} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`kitchen-${amenity}`}
-                            checked={formData.kitchen_amenities.includes(amenity)}
-                            onCheckedChange={() => {
-                              setFormData((prev) => ({
-                                ...prev,
-                                kitchen_amenities: prev.kitchen_amenities.includes(amenity)
-                                  ? prev.kitchen_amenities.filter((a) => a !== amenity)
-                                  : [...prev.kitchen_amenities, amenity],
-                              }))
-                            }}
-                          />
-                          <Label htmlFor={`kitchen-${amenity}`} className="text-sm">
-                            {amenity}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
                   <div>
                     <Label htmlFor="food_delivery_details">Food Delivery Details (Optional)</Label>
                     <Textarea
@@ -688,6 +679,15 @@ export default function ListPropertyPage() {
                       />
                     </div>
                   </div>
+
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-2">About Individual Room Management</h4>
+                    <p className="text-sm text-blue-700">
+                      In the next step, you'll add individual rooms one by one. Each room can have its own amenities,
+                      pricing, and features. The general hotel amenities will be automatically calculated based on
+                      what's available across all your rooms.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -698,159 +698,119 @@ export default function ListPropertyPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                       <span className="flex items-center">
-                        <Bed className="w-5 h-5 mr-2" />
-                        Room Types
+                        <Home className="w-5 h-5 mr-2" />
+                        Individual Rooms ({formData.individual_rooms.length})
                       </span>
-                      <Button onClick={addRoomType} variant="outline" size="sm">
+                      <Button onClick={() => openRoomDialog()} variant="outline" size="sm">
                         <Plus className="w-4 h-4 mr-2" />
-                        Add Room Type
+                        Add Room
                       </Button>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {formData.room_types.map((room, index) => (
-                      <div key={index} className="border rounded-lg p-4 mb-4">
-                        <div className="flex justify-between items-center mb-4">
-                          <h4 className="font-semibold">Room Type {index + 1}</h4>
-                          {formData.room_types.length > 1 && (
-                            <Button onClick={() => removeRoomType(index)} variant="outline" size="sm">
-                              <X className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                          <div>
-                            <Label>Room Name *</Label>
-                            <Input
-                              value={room.name}
-                              onChange={(e) => updateRoomType(index, "name", e.target.value)}
-                              placeholder="Deluxe Room"
-                            />
-                          </div>
-                          <div>
-                            <Label>Bed Type</Label>
-                            <Select
-                              value={room.bed_type}
-                              onValueChange={(value) => updateRoomType(index, "bed_type", value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {BED_TYPES.map((type) => (
-                                  <SelectItem key={type} value={type}>
-                                    {type}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div className="mb-4">
-                          <Label>Description</Label>
-                          <Textarea
-                            value={room.description}
-                            onChange={(e) => updateRoomType(index, "description", e.target.value)}
-                            placeholder="Describe this room type"
-                            rows={2}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                          <div>
-                            <Label>Max Occupancy</Label>
-                            <Input
-                              type="number"
-                              value={room.max_occupancy}
-                              onChange={(e) => updateRoomType(index, "max_occupancy", e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <Label>Price per Night (₹)</Label>
-                            <Input
-                              type="number"
-                              value={room.base_price}
-                              onChange={(e) => updateRoomType(index, "base_price", e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <Label>Number of Rooms</Label>
-                            <Input
-                              type="number"
-                              value={room.total_rooms}
-                              onChange={(e) => updateRoomType(index, "total_rooms", e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        {/* New toilet information section */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                          <div>
-                            <Label>Toilet Type</Label>
-                            <Select
-                              value={room.toilet_type}
-                              onValueChange={(value) => updateRoomType(index, "toilet_type", value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="attached">Attached Bathroom</SelectItem>
-                                <SelectItem value="common">Common Bathroom</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>Number of Toilets</Label>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={room.toilet_count}
-                              onChange={(e) => updateRoomType(index, "toilet_count", e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`ac-${index}`}
-                              checked={room.has_ac}
-                              onCheckedChange={(checked) => updateRoomType(index, "has_ac", checked as boolean)}
-                            />
-                            <Label htmlFor={`ac-${index}`}>AC</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`wifi-${index}`}
-                              checked={room.has_wifi}
-                              onCheckedChange={(checked) => updateRoomType(index, "has_wifi", checked as boolean)}
-                            />
-                            <Label htmlFor={`wifi-${index}`}>WiFi</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`tv-${index}`}
-                              checked={room.has_tv}
-                              onCheckedChange={(checked) => updateRoomType(index, "has_tv", checked as boolean)}
-                            />
-                            <Label htmlFor={`tv-${index}`}>TV</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`balcony-${index}`}
-                              checked={room.has_balcony}
-                              onCheckedChange={(checked) => updateRoomType(index, "has_balcony", checked as boolean)}
-                            />
-                            <Label htmlFor={`balcony-${index}`}>Balcony</Label>
-                          </div>
-                        </div>
+                    {formData.individual_rooms.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <Home className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p>No rooms added yet. Click "Add Room" to start adding individual rooms.</p>
                       </div>
-                    ))}
+                    ) : (
+                      <div className="space-y-4">
+                        {formData.individual_rooms.map((room, index) => (
+                          <div key={room.id} className="border rounded-lg p-4">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h4 className="font-semibold text-lg">{room.room_name}</h4>
+                                <p className="text-sm text-gray-600">
+                                  Floor {room.floor} • {room.room_type} • ₹{room.base_price}/night
+                                </p>
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button onClick={() => openRoomDialog(index)} variant="outline" size="sm">
+                                  Edit
+                                </Button>
+                                <Button onClick={() => removeRoom(index)} variant="destructive" size="sm">
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <span className="text-gray-500">Occupancy:</span>
+                                <span className="ml-1 font-medium">{room.max_occupancy} guests</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Bed:</span>
+                                <span className="ml-1 font-medium">{room.bed_type}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Toilet:</span>
+                                <span className="ml-1 font-medium">
+                                  {room.has_attached_toilet ? "Attached" : "Common"} ({room.toilet_count})
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">AC:</span>
+                                <span className="ml-1 font-medium">{room.has_ac ? "Yes" : "No"}</span>
+                              </div>
+                            </div>
+
+                            <div className="mt-3">
+                              <div className="flex flex-wrap gap-1">
+                                {room.has_mattress && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Mattress
+                                  </Badge>
+                                )}
+                                {room.has_cupboard && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Cupboard
+                                  </Badge>
+                                )}
+                                {room.has_ceiling_fan && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Ceiling Fan
+                                  </Badge>
+                                )}
+                                {room.has_balcony_access && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Balcony
+                                  </Badge>
+                                )}
+                                {room.room_amenities.map((amenity) => (
+                                  <Badge key={amenity} variant="outline" className="text-xs">
+                                    {amenity}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
+
+                {/* Auto-calculated General Amenities */}
+                {formData.individual_rooms.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Auto-Calculated General Amenities</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-600 mb-3">
+                        These amenities are automatically calculated based on your individual rooms:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {getGeneralAmenities().map((amenity) => (
+                          <Badge key={amenity} variant="secondary" className="text-sm">
+                            {amenity}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Review Summary */}
                 <Card>
@@ -869,31 +829,26 @@ export default function ListPropertyPage() {
                       </div>
                       <div>
                         <h4 className="font-semibold">Starting Price: ₹{formData.starting_price} per night</h4>
-                        <p className="text-sm text-gray-600">{formData.total_rooms} total rooms</p>
+                        <p className="text-sm text-gray-600">
+                          {formData.individual_rooms.length} individual rooms added
+                        </p>
                       </div>
                       <div>
-                        <h4 className="font-semibold">Amenities: {formData.amenities.length} selected</h4>
+                        <h4 className="font-semibold">General Amenities: {getGeneralAmenities().length} calculated</h4>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {formData.amenities.slice(0, 5).map((amenity) => (
-                            <Badge key={amenity} variant="secondary" className="text-xs">
-                              {amenity}
-                            </Badge>
-                          ))}
-                          {formData.amenities.length > 5 && (
+                          {getGeneralAmenities()
+                            .slice(0, 5)
+                            .map((amenity) => (
+                              <Badge key={amenity} variant="secondary" className="text-xs">
+                                {amenity}
+                              </Badge>
+                            ))}
+                          {getGeneralAmenities().length > 5 && (
                             <Badge variant="outline" className="text-xs">
-                              +{formData.amenities.length - 5} more
+                              +{getGeneralAmenities().length - 5} more
                             </Badge>
                           )}
                         </div>
-                      </div>
-                      <div>
-                        <h4 className="font-semibold">Room Types: {formData.room_types.length}</h4>
-                        <p className="text-sm text-gray-600">
-                          {formData.room_types
-                            .map((room) => room.name)
-                            .filter(Boolean)
-                            .join(", ")}
-                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -939,6 +894,206 @@ export default function ListPropertyPage() {
         </section>
       </main>
       <Footer />
+
+      {/* Room Management Dialog */}
+      <Dialog open={showRoomDialog} onOpenChange={setShowRoomDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingRoomIndex !== null ? "Edit Room" : "Add New Room"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Basic Room Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="room_name">Room Name *</Label>
+                <Input
+                  id="room_name"
+                  value={currentRoom.room_name}
+                  onChange={(e) => handleRoomInputChange("room_name", e.target.value)}
+                  placeholder="e.g., Deluxe Room 101"
+                />
+              </div>
+              <div>
+                <Label htmlFor="floor">Floor *</Label>
+                <Input
+                  id="floor"
+                  value={currentRoom.floor}
+                  onChange={(e) => handleRoomInputChange("floor", e.target.value)}
+                  placeholder="e.g., Ground Floor, 1st Floor, 2nd Floor"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="room_type">Room Type</Label>
+                <Select
+                  value={currentRoom.room_type}
+                  onValueChange={(value) => handleRoomInputChange("room_type", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROOM_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="max_occupancy">Max Occupancy</Label>
+                <Input
+                  id="max_occupancy"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={currentRoom.max_occupancy}
+                  onChange={(e) => handleRoomInputChange("max_occupancy", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="base_price">Price per Night (₹) *</Label>
+              <Input
+                id="base_price"
+                type="number"
+                value={currentRoom.base_price}
+                onChange={(e) => handleRoomInputChange("base_price", e.target.value)}
+                placeholder="1500"
+              />
+            </div>
+
+            {/* Toilet Facilities */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-3">Toilet Facilities</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="has_attached_toilet"
+                    checked={currentRoom.has_attached_toilet}
+                    onCheckedChange={(checked) => handleRoomInputChange("has_attached_toilet", checked as boolean)}
+                  />
+                  <Label htmlFor="has_attached_toilet">Attached Toilet</Label>
+                </div>
+                <div>
+                  <Label htmlFor="toilet_count">Number of Toilets</Label>
+                  <Input
+                    id="toilet_count"
+                    type="number"
+                    min="1"
+                    value={currentRoom.toilet_count}
+                    onChange={(e) => handleRoomInputChange("toilet_count", e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Furniture & Bedding */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-3">Furniture & Bedding</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <Label htmlFor="bed_type">Bed Type</Label>
+                  <Select
+                    value={currentRoom.bed_type}
+                    onValueChange={(value) => handleRoomInputChange("bed_type", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BED_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="has_mattress"
+                    checked={currentRoom.has_mattress}
+                    onCheckedChange={(checked) => handleRoomInputChange("has_mattress", checked as boolean)}
+                  />
+                  <Label htmlFor="has_mattress">Mattress</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="has_cupboard"
+                    checked={currentRoom.has_cupboard}
+                    onCheckedChange={(checked) => handleRoomInputChange("has_cupboard", checked as boolean)}
+                  />
+                  <Label htmlFor="has_cupboard">Cupboard/Wardrobe</Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Electrical & Comfort */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-3">Electrical & Comfort</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="has_ac"
+                    checked={currentRoom.has_ac}
+                    onCheckedChange={(checked) => handleRoomInputChange("has_ac", checked as boolean)}
+                  />
+                  <Label htmlFor="has_ac">Air Conditioning</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="has_ceiling_fan"
+                    checked={currentRoom.has_ceiling_fan}
+                    onCheckedChange={(checked) => handleRoomInputChange("has_ceiling_fan", checked as boolean)}
+                  />
+                  <Label htmlFor="has_ceiling_fan">Ceiling Fan</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="has_balcony_access"
+                    checked={currentRoom.has_balcony_access}
+                    onCheckedChange={(checked) => handleRoomInputChange("has_balcony_access", checked as boolean)}
+                  />
+                  <Label htmlFor="has_balcony_access">Balcony Access</Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Room Amenities */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-3">Additional Room Amenities</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {ROOM_AMENITIES.map((amenity) => (
+                  <div key={amenity} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`room-amenity-${amenity}`}
+                      checked={currentRoom.room_amenities.includes(amenity)}
+                      onCheckedChange={() => handleRoomAmenityToggle(amenity)}
+                    />
+                    <Label htmlFor={`room-amenity-${amenity}`} className="text-sm">
+                      {amenity}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={() => setShowRoomDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={saveRoom}>{editingRoomIndex !== null ? "Update Room" : "Add Room"}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

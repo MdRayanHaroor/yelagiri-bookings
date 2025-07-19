@@ -1,34 +1,37 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Header } from "@/components/header"
+import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
-  Building,
-  Users,
-  TrendingUp,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Eye,
-  MapPin,
-  Phone,
-  Mail,
-  Calendar,
+  HotelIcon,
+  UsersIcon,
+  FileTextIcon,
+  StarIcon,
+  MapPinIcon,
+  PhoneIcon,
+  MailIcon,
+  EditIcon,
+  PlusIcon,
+  CheckIcon,
+  XIcon,
+  EyeIcon,
 } from "lucide-react"
+import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 
 interface PropertySubmission {
   id: string
   name: string
-  description: string
   short_description: string
   address: string
   area: string
@@ -36,969 +39,889 @@ interface PropertySubmission {
   email: string
   starting_price: number
   total_rooms: number
+  status: string
+  amenities: string[]
+  individual_rooms: any[]
   owner_info: {
     name: string
     phone: string
     email: string
   }
-  amenities: string[]
-  room_types: any[]
-  status: string
   submission_date: string
-  admin_notes?: string
 }
 
-interface DashboardStats {
-  totalHotels: number
-  pendingSubmissions: number
-  totalBookings: number
-  totalRevenue: number
+interface Hotel {
+  id: string
+  name: string
+  short_description: string
+  address: string
+  area: string
+  phone: string
+  email: string
+  starting_price: number
+  total_rooms: number
+  status: string
+  amenities: string[]
+  is_featured: boolean
+  is_verified: boolean
+  created_at: string
+}
+
+interface Amenity {
+  id: string
+  name: string
+  icon: string
+  category: string
+  is_active: boolean
 }
 
 export default function AdminDashboard() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" })
-  const [stats, setStats] = useState<DashboardStats>({
-    totalHotels: 0,
-    pendingSubmissions: 0,
-    totalBookings: 0,
-    totalRevenue: 0,
-  })
+  const [activeTab, setActiveTab] = useState("submissions")
   const [submissions, setSubmissions] = useState<PropertySubmission[]>([])
+  const [hotels, setHotels] = useState<Hotel[]>([])
+  const [amenities, setAmenities] = useState<Amenity[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedSubmission, setSelectedSubmission] = useState<PropertySubmission | null>(null)
-  const [adminNotes, setAdminNotes] = useState("")
-  const [loading, setLoading] = useState(false)
-
-  const [hotels, setHotels] = useState<any[]>([])
-  const [selectedHotel, setSelectedHotel] = useState<any>(null)
-  const [editingHotel, setEditingHotel] = useState<any>(null)
-  const [hotelFormData, setHotelFormData] = useState<any>({})
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null)
+  const [showSubmissionDialog, setShowSubmissionDialog] = useState(false)
+  const [showHotelDialog, setShowHotelDialog] = useState(false)
+  const [showAmenityDialog, setShowAmenityDialog] = useState(false)
+  const [newAmenity, setNewAmenity] = useState({ name: "", icon: "", category: "general" })
 
   useEffect(() => {
-    // Check if already authenticated (simple session check)
-    const isAdmin = localStorage.getItem("admin_authenticated")
-    if (isAdmin === "true") {
-      setIsAuthenticated(true)
-      loadDashboardData()
-      loadHotels()
-    }
+    fetchData()
   }, [])
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    // Simple admin authentication (in production, use proper auth)
-    if (loginForm.email === "admin@yelagiribookings.com" && loginForm.password === "admin123") {
-      setIsAuthenticated(true)
-      localStorage.setItem("admin_authenticated", "true")
-      loadDashboardData()
-    } else {
-      alert("Invalid credentials")
-    }
-  }
-
-  const handleLogout = () => {
-    setIsAuthenticated(false)
-    localStorage.removeItem("admin_authenticated")
-  }
-
-  const loadDashboardData = async () => {
+  const fetchData = async () => {
     setLoading(true)
     try {
-      // Load stats
-      const [hotelsResult, submissionsResult] = await Promise.all([
-        supabase.from("hotels").select("id", { count: "exact", head: true }),
-        supabase.from("property_submissions").select("*").order("submission_date", { ascending: false }),
-      ])
+      // Fetch property submissions
+      const { data: submissionsData, error: submissionsError } = await supabase
+        .from("property_submissions")
+        .select("*")
+        .order("submission_date", { ascending: false })
 
-      const totalHotels = hotelsResult.count || 0
-      const pendingSubmissions = submissionsResult.data?.filter((s) => s.status === "pending").length || 0
+      if (submissionsError) {
+        console.error("Error fetching submissions:", submissionsError)
+      } else {
+        setSubmissions(submissionsData || [])
+      }
 
-      setStats({
-        totalHotels,
-        pendingSubmissions,
-        totalBookings: 0, // Would come from bookings table
-        totalRevenue: 0, // Would be calculated from bookings
-      })
+      // Fetch hotels
+      const { data: hotelsData, error: hotelsError } = await supabase
+        .from("hotels")
+        .select("*")
+        .order("created_at", { ascending: false })
 
-      setSubmissions(submissionsResult.data || [])
+      if (hotelsError) {
+        console.error("Error fetching hotels:", hotelsError)
+      } else {
+        setHotels(hotelsData || [])
+      }
+
+      // Fetch amenities
+      const { data: amenitiesData, error: amenitiesError } = await supabase
+        .from("amenities")
+        .select("*")
+        .order("category", { ascending: true })
+
+      if (amenitiesError) {
+        console.error("Error fetching amenities:", amenitiesError)
+      } else {
+        setAmenities(amenitiesData || [])
+      }
     } catch (error) {
-      console.error("Error loading dashboard data:", error)
+      console.error("Error fetching data:", error)
     } finally {
       setLoading(false)
     }
   }
 
-  const loadHotels = async () => {
+  const approveSubmission = async (submission: PropertySubmission) => {
     try {
-      const { data, error } = await supabase
-        .from("hotels")
-        .select(`
-        *,
-        hotel_images (
-          id,
-          image_url,
-          alt_text,
-          is_primary
-        ),
-        hotel_amenities (
-          id,
-          amenities (
-            name,
-            icon
-          )
-        ),
-        room_types (
-          id,
-          name,
-          base_price,
-          total_rooms,
-          available_rooms
-        )
-      `)
-        .order("created_at", { ascending: false })
+      // Create hotel from submission
+      const hotelData = {
+        name: submission.name,
+        short_description: submission.short_description,
+        description: submission.short_description, // You might want to add a full description field
+        address: submission.address,
+        area: submission.area,
+        phone: submission.phone,
+        email: submission.email,
+        starting_price: submission.starting_price,
+        total_rooms: submission.individual_rooms?.length || submission.total_rooms,
+        status: "active",
+        amenities: submission.amenities || [],
+        is_featured: false,
+        is_verified: true,
+        slug: submission.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, ""),
+        category: "hotel", // Default category
+        latitude: null,
+        longitude: null,
+        check_in_time: "14:00",
+        check_out_time: "11:00",
+      }
 
-      if (error) throw error
-      setHotels(data || [])
+      const { data: hotel, error: hotelError } = await supabase.from("hotels").insert([hotelData]).select().single()
+
+      if (hotelError) {
+        console.error("Error creating hotel:", hotelError)
+        alert("Error approving submission")
+        return
+      }
+
+      // Create individual rooms if they exist
+      if (submission.individual_rooms && submission.individual_rooms.length > 0) {
+        const roomsData = submission.individual_rooms.map((room) => ({
+          hotel_id: hotel.id,
+          submission_id: submission.id,
+          room_name: room.room_name,
+          floor: room.floor,
+          room_type: room.room_type,
+          max_occupancy: Number.parseInt(room.max_occupancy),
+          base_price: Number.parseFloat(room.base_price),
+          has_attached_toilet: room.has_attached_toilet,
+          toilet_count: Number.parseInt(room.toilet_count),
+          bed_type: room.bed_type,
+          has_mattress: room.has_mattress,
+          has_cupboard: room.has_cupboard,
+          has_ac: room.has_ac,
+          has_ceiling_fan: room.has_ceiling_fan,
+          has_balcony_access: room.has_balcony_access,
+          room_amenities: room.room_amenities || [],
+        }))
+
+        const { error: roomsError } = await supabase.from("individual_rooms").insert(roomsData)
+
+        if (roomsError) {
+          console.error("Error creating rooms:", roomsError)
+        }
+      }
+
+      // Update submission status
+      const { error: updateError } = await supabase
+        .from("property_submissions")
+        .update({ status: "approved" })
+        .eq("id", submission.id)
+
+      if (updateError) {
+        console.error("Error updating submission:", updateError)
+      }
+
+      alert("Submission approved successfully!")
+      fetchData()
     } catch (error) {
-      console.error("Error loading hotels:", error)
+      console.error("Error approving submission:", error)
+      alert("Error approving submission")
     }
   }
 
-  const handleHotelStatusChange = async (hotelId: string, newStatus: string) => {
+  const rejectSubmission = async (submissionId: string) => {
     try {
       const { error } = await supabase
-        .from("hotels")
-        .update({
-          status: newStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", hotelId)
+        .from("property_submissions")
+        .update({ status: "rejected" })
+        .eq("id", submissionId)
 
-      if (error) throw error
+      if (error) {
+        console.error("Error rejecting submission:", error)
+        alert("Error rejecting submission")
+        return
+      }
 
-      loadHotels()
-      alert(`Hotel status updated to ${newStatus}`)
+      alert("Submission rejected")
+      fetchData()
     } catch (error) {
-      console.error("Error updating hotel status:", error)
-      alert("Error updating hotel status")
+      console.error("Error rejecting submission:", error)
+      alert("Error rejecting submission")
     }
   }
 
-  const handleToggleFeatured = async (hotelId: string, currentFeatured: boolean) => {
+  const updateHotelAmenities = async (hotelId: string, amenities: string[]) => {
     try {
-      const { error } = await supabase
-        .from("hotels")
-        .update({
-          is_featured: !currentFeatured,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", hotelId)
+      const { error } = await supabase.from("hotels").update({ amenities }).eq("id", hotelId)
 
-      if (error) throw error
+      if (error) {
+        console.error("Error updating hotel amenities:", error)
+        alert("Error updating amenities")
+        return
+      }
 
-      loadHotels()
-      alert(`Hotel ${!currentFeatured ? "added to" : "removed from"} featured list`)
+      alert("Hotel amenities updated successfully!")
+      fetchData()
+      setShowHotelDialog(false)
     } catch (error) {
-      console.error("Error updating featured status:", error)
-      alert("Error updating featured status")
+      console.error("Error updating hotel amenities:", error)
+      alert("Error updating amenities")
     }
   }
 
-  const handleDeleteHotel = async (hotelId: string) => {
-    if (!confirm("Are you sure you want to delete this hotel? This action cannot be undone.")) {
+  const addAmenity = async () => {
+    if (!newAmenity.name.trim()) {
+      alert("Please enter amenity name")
       return
     }
 
     try {
-      const { error } = await supabase.from("hotels").delete().eq("id", hotelId)
+      const { error } = await supabase.from("amenities").insert([
+        {
+          name: newAmenity.name,
+          icon: newAmenity.icon || "star",
+          category: newAmenity.category,
+        },
+      ])
 
-      if (error) throw error
-
-      loadHotels()
-      setSelectedHotel(null)
-      alert("Hotel deleted successfully")
-    } catch (error) {
-      console.error("Error deleting hotel:", error)
-      alert("Error deleting hotel")
-    }
-  }
-
-  const startEditingHotel = (hotel: any) => {
-    setEditingHotel(hotel)
-    setHotelFormData({
-      name: hotel.name,
-      description: hotel.description,
-      short_description: hotel.short_description,
-      address: hotel.address,
-      area: hotel.area,
-      phone: hotel.phone,
-      email: hotel.email,
-      website: hotel.website || "",
-      starting_price: hotel.starting_price.toString(),
-      total_rooms: hotel.total_rooms.toString(),
-      check_in_time: hotel.check_in_time,
-      check_out_time: hotel.check_out_time,
-    })
-  }
-
-  const handleUpdateHotel = async () => {
-    try {
-      const { error } = await supabase
-        .from("hotels")
-        .update({
-          name: hotelFormData.name,
-          description: hotelFormData.description,
-          short_description: hotelFormData.short_description,
-          address: hotelFormData.address,
-          area: hotelFormData.area,
-          phone: hotelFormData.phone,
-          email: hotelFormData.email,
-          website: hotelFormData.website || null,
-          starting_price: Number.parseFloat(hotelFormData.starting_price),
-          total_rooms: Number.parseInt(hotelFormData.total_rooms),
-          check_in_time: hotelFormData.check_in_time,
-          check_out_time: hotelFormData.check_out_time,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", editingHotel.id)
-
-      if (error) throw error
-
-      loadHotels()
-      setEditingHotel(null)
-      setHotelFormData({})
-      alert("Hotel updated successfully")
-    } catch (error) {
-      console.error("Error updating hotel:", error)
-      alert("Error updating hotel")
-    }
-  }
-
-  const handleSubmissionAction = async (submissionId: string, action: "approve" | "reject") => {
-    try {
-      if (action === "approve") {
-        // Move to hotels table
-        const submission = submissions.find((s) => s.id === submissionId)
-        if (!submission) return
-
-        // Create hotel record
-        const hotelData = {
-          name: submission.name,
-          description: submission.description,
-          short_description: submission.short_description,
-          address: submission.address,
-          area: submission.area,
-          phone: submission.phone,
-          email: submission.email,
-          starting_price: submission.starting_price,
-          total_rooms: submission.total_rooms,
-          status: "active",
-          is_featured: false,
-          is_verified: true,
-          slug: submission.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, ""),
-          average_rating: 0,
-          total_reviews: 0,
-        }
-
-        const { error: hotelError } = await supabase.from("hotels").insert([hotelData])
-        if (hotelError) throw hotelError
+      if (error) {
+        console.error("Error adding amenity:", error)
+        alert("Error adding amenity")
+        return
       }
 
-      // Update submission status
-      const { error } = await supabase
-        .from("property_submissions")
-        .update({
-          status: action === "approve" ? "approved" : "rejected",
-          admin_notes: adminNotes,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq("id", submissionId)
-
-      if (error) throw error
-
-      // Reload data
-      loadDashboardData()
-      setSelectedSubmission(null)
-      setAdminNotes("")
-
-      alert(`Submission ${action}d successfully!`)
+      alert("Amenity added successfully!")
+      setNewAmenity({ name: "", icon: "", category: "general" })
+      setShowAmenityDialog(false)
+      fetchData()
     } catch (error) {
-      console.error(`Error ${action}ing submission:`, error)
-      alert(`Error ${action}ing submission`)
+      console.error("Error adding amenity:", error)
+      alert("Error adding amenity")
     }
   }
 
-  if (!isAuthenticated) {
+  const toggleAmenityStatus = async (amenityId: string, isActive: boolean) => {
+    try {
+      const { error } = await supabase.from("amenities").update({ is_active: !isActive }).eq("id", amenityId)
+
+      if (error) {
+        console.error("Error updating amenity status:", error)
+        alert("Error updating amenity status")
+        return
+      }
+
+      fetchData()
+    } catch (error) {
+      console.error("Error updating amenity status:", error)
+      alert("Error updating amenity status")
+    }
+  }
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-center">Admin Login</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
-                  placeholder="admin@yelagiribookings.com"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
-                  placeholder="Enter password"
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full bg-[#0071C2] hover:bg-[#005999]">
-                Login
-              </Button>
-            </form>
-            <div className="mt-4 p-3 bg-blue-50 rounded text-sm text-blue-700">
-              <p>
-                <strong>Demo Credentials:</strong>
-              </p>
-              <p>Email: admin@yelagiribookings.com</p>
-              <p>Password: admin123</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-grow flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0071C2] mx-auto mb-4"></div>
+            <p>Loading admin dashboard...</p>
+          </div>
+        </main>
+        <Footer />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-            <Button onClick={handleLogout} variant="outline">
-              Logout
-            </Button>
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <main className="flex-grow">
+        {/* Hero Section */}
+        <section className="bg-[#003580] text-white py-8">
+          <div className="container mx-auto px-4">
+            <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
+            <p className="text-lg opacity-90">Manage properties, submissions, and system settings</p>
           </div>
-        </div>
-      </header>
+        </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Building className="h-8 w-8 text-blue-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Hotels</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalHotels}</p>
+        {/* Dashboard Content */}
+        <section className="py-8">
+          <div className="container mx-auto px-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="submissions" className="flex items-center">
+                  <FileTextIcon className="w-4 h-4 mr-2" />
+                  Submissions ({submissions.filter((s) => s.status === "pending").length})
+                </TabsTrigger>
+                <TabsTrigger value="hotels" className="flex items-center">
+                  <HotelIcon className="w-4 h-4 mr-2" />
+                  Hotels ({hotels.length})
+                </TabsTrigger>
+                <TabsTrigger value="amenities" className="flex items-center">
+                  <StarIcon className="w-4 h-4 mr-2" />
+                  Amenities ({amenities.length})
+                </TabsTrigger>
+                <TabsTrigger value="users" className="flex items-center">
+                  <UsersIcon className="w-4 h-4 mr-2" />
+                  Users
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Property Submissions Tab */}
+              <TabsContent value="submissions" className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">Property Submissions</h2>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Clock className="h-8 w-8 text-yellow-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Pending Reviews</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.pendingSubmissions}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Users className="h-8 w-8 text-green-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Bookings</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalBookings}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <TrendingUp className="h-8 w-8 text-purple-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Revenue</p>
-                  <p className="text-2xl font-bold text-gray-900">₹{stats.totalRevenue.toLocaleString()}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <Tabs defaultValue="submissions" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="submissions">Property Submissions</TabsTrigger>
-            <TabsTrigger value="hotels">Manage Hotels</TabsTrigger>
-            <TabsTrigger value="bookings">Bookings</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="submissions">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Submissions List */}
-              <div className="lg:col-span-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Property Submissions</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {loading ? (
-                      <div className="text-center py-8">Loading...</div>
-                    ) : submissions.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">No submissions found</div>
-                    ) : (
-                      <div className="space-y-4">
-                        {submissions.map((submission) => (
-                          <div
-                            key={submission.id}
-                            className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                              selectedSubmission?.id === submission.id
-                                ? "border-blue-500 bg-blue-50"
-                                : "border-gray-200 hover:border-gray-300"
-                            }`}
-                            onClick={() => setSelectedSubmission(submission)}
-                          >
-                            <div className="flex justify-between items-start mb-2">
-                              <h3 className="font-semibold text-lg">{submission.name}</h3>
-                              <Badge
-                                variant={
-                                  submission.status === "pending"
-                                    ? "default"
-                                    : submission.status === "approved"
-                                      ? "secondary"
-                                      : "destructive"
-                                }
-                              >
-                                {submission.status}
-                              </Badge>
+                <div className="grid gap-6">
+                  {submissions
+                    .filter((s) => s.status === "pending")
+                    .map((submission) => (
+                      <Card key={submission.id}>
+                        <CardHeader>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="flex items-center">
+                                <HotelIcon className="w-5 h-5 mr-2" />
+                                {submission.name}
+                              </CardTitle>
+                              <p className="text-gray-600 mt-1">{submission.short_description}</p>
                             </div>
-                            <p className="text-sm text-gray-600 mb-2">{submission.short_description}</p>
-                            <div className="flex items-center text-sm text-gray-500 space-x-4">
-                              <span className="flex items-center">
-                                <MapPin className="w-4 h-4 mr-1" />
-                                {submission.area}
-                              </span>
-                              <span className="flex items-center">
-                                <Calendar className="w-4 h-4 mr-1" />
-                                {new Date(submission.submission_date).toLocaleDateString()}
-                              </span>
-                              <span>₹{submission.starting_price.toLocaleString()}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Submission Details */}
-              <div>
-                {selectedSubmission ? (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center">
-                        <Eye className="w-5 h-5 mr-2" />
-                        Review Submission
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <h3 className="font-semibold text-lg">{selectedSubmission.name}</h3>
-                        <p className="text-sm text-gray-600">{selectedSubmission.description}</p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center text-sm">
-                          <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                          <span>{selectedSubmission.address}</span>
-                        </div>
-                        <div className="flex items-center text-sm">
-                          <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                          <span>{selectedSubmission.phone}</span>
-                        </div>
-                        <div className="flex items-center text-sm">
-                          <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                          <span>{selectedSubmission.email}</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="font-medium mb-2">Owner Information</h4>
-                        <div className="bg-gray-50 p-3 rounded text-sm">
-                          <p>
-                            <strong>Name:</strong> {selectedSubmission.owner_info.name}
-                          </p>
-                          <p>
-                            <strong>Phone:</strong> {selectedSubmission.owner_info.phone}
-                          </p>
-                          <p>
-                            <strong>Email:</strong> {selectedSubmission.owner_info.email}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="font-medium mb-2">Property Details</h4>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-gray-500">Price:</span>
-                            <span className="ml-1 font-medium">
-                              ₹{selectedSubmission.starting_price.toLocaleString()}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Rooms:</span>
-                            <span className="ml-1 font-medium">{selectedSubmission.total_rooms}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Area:</span>
-                            <span className="ml-1 font-medium">{selectedSubmission.area}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="font-medium mb-2">Amenities</h4>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedSubmission.amenities.map((amenity, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {amenity}
+                            <Badge variant={submission.status === "pending" ? "default" : "secondary"}>
+                              {submission.status}
                             </Badge>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="font-medium mb-2">Room Types</h4>
-                        <div className="space-y-2">
-                          {selectedSubmission.room_types.map((room, index) => (
-                            <div key={index} className="bg-gray-50 p-2 rounded text-sm">
-                              <p className="font-medium">{room.name}</p>
-                              <p className="text-gray-600">
-                                ₹{room.base_price} • {room.max_occupancy} guests
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {selectedSubmission.status === "pending" && (
-                        <div className="space-y-3">
-                          <div>
-                            <Label htmlFor="admin_notes">Admin Notes</Label>
-                            <Textarea
-                              id="admin_notes"
-                              value={adminNotes}
-                              onChange={(e) => setAdminNotes(e.target.value)}
-                              placeholder="Add notes for this submission..."
-                              rows={3}
-                            />
                           </div>
-
-                          <div className="flex space-x-2">
-                            <Button
-                              onClick={() => handleSubmissionAction(selectedSubmission.id, "approve")}
-                              className="flex-1 bg-green-600 hover:bg-green-700"
-                            >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Approve
-                            </Button>
-                            <Button
-                              onClick={() => handleSubmissionAction(selectedSubmission.id, "reject")}
-                              variant="destructive"
-                              className="flex-1"
-                            >
-                              <XCircle className="w-4 h-4 mr-2" />
-                              Reject
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedSubmission.admin_notes && (
-                        <div>
-                          <h4 className="font-medium mb-2">Admin Notes</h4>
-                          <div className="bg-yellow-50 p-3 rounded text-sm">{selectedSubmission.admin_notes}</div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card>
-                    <CardContent className="p-8 text-center text-gray-500">Select a submission to review</CardContent>
-                  </Card>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="hotels">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Hotels List */}
-              <div className="lg:col-span-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Manage Hotels ({hotels.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {loading ? (
-                      <div className="text-center py-8">Loading hotels...</div>
-                    ) : hotels.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">No hotels found</div>
-                    ) : (
-                      <div className="space-y-4">
-                        {hotels.map((hotel) => (
-                          <div
-                            key={hotel.id}
-                            className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                              selectedHotel?.id === hotel.id
-                                ? "border-blue-500 bg-blue-50"
-                                : "border-gray-200 hover:border-gray-300"
-                            }`}
-                            onClick={() => setSelectedHotel(hotel)}
-                          >
-                            <div className="flex justify-between items-start mb-2">
-                              <h3 className="font-semibold text-lg">{hotel.name}</h3>
-                              <div className="flex space-x-2">
-                                <Badge
-                                  variant={
-                                    hotel.status === "active"
-                                      ? "secondary"
-                                      : hotel.status === "inactive"
-                                        ? "outline"
-                                        : "destructive"
-                                  }
-                                >
-                                  {hotel.status}
-                                </Badge>
-                                {hotel.is_featured && <Badge variant="default">Featured</Badge>}
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div className="space-y-2">
+                              <div className="flex items-center text-sm">
+                                <MapPinIcon className="w-4 h-4 mr-2 text-gray-500" />
+                                {submission.address}, {submission.area}
+                              </div>
+                              <div className="flex items-center text-sm">
+                                <PhoneIcon className="w-4 h-4 mr-2 text-gray-500" />
+                                {submission.phone}
+                              </div>
+                              <div className="flex items-center text-sm">
+                                <MailIcon className="w-4 h-4 mr-2 text-gray-500" />
+                                {submission.email}
                               </div>
                             </div>
-                            <p className="text-sm text-gray-600 mb-2">{hotel.short_description}</p>
-                            <div className="flex items-center text-sm text-gray-500 space-x-4">
-                              <span className="flex items-center">
-                                <MapPin className="w-4 h-4 mr-1" />
-                                {hotel.area}
-                              </span>
-                              <span>₹{hotel.starting_price.toLocaleString()}</span>
-                              <span>{hotel.total_rooms} rooms</span>
-                              <span>
-                                {hotel.average_rating}★ ({hotel.total_reviews})
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Hotel Details/Edit */}
-              <div>
-                {selectedHotel ? (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <span>Hotel Details</span>
-                        <div className="flex space-x-2">
-                          <Button onClick={() => startEditingHotel(selectedHotel)} variant="outline" size="sm">
-                            Edit
-                          </Button>
-                          <Button onClick={() => handleDeleteHotel(selectedHotel.id)} variant="destructive" size="sm">
-                            Delete
-                          </Button>
-                        </div>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {editingHotel?.id === selectedHotel.id ? (
-                        // Edit Form
-                        <div className="space-y-4">
-                          <div>
-                            <Label>Hotel Name</Label>
-                            <Input
-                              value={hotelFormData.name || ""}
-                              onChange={(e) => setHotelFormData((prev) => ({ ...prev, name: e.target.value }))}
-                            />
-                          </div>
-                          <div>
-                            <Label>Short Description</Label>
-                            <Input
-                              value={hotelFormData.short_description || ""}
-                              onChange={(e) =>
-                                setHotelFormData((prev) => ({ ...prev, short_description: e.target.value }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <Label>Description</Label>
-                            <Textarea
-                              value={hotelFormData.description || ""}
-                              onChange={(e) => setHotelFormData((prev) => ({ ...prev, description: e.target.value }))}
-                              rows={3}
-                            />
-                          </div>
-                          <div>
-                            <Label>Address</Label>
-                            <Textarea
-                              value={hotelFormData.address || ""}
-                              onChange={(e) => setHotelFormData((prev) => ({ ...prev, address: e.target.value }))}
-                              rows={2}
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <Label>Area</Label>
-                              <Input
-                                value={hotelFormData.area || ""}
-                                onChange={(e) => setHotelFormData((prev) => ({ ...prev, area: e.target.value }))}
-                              />
-                            </div>
-                            <div>
-                              <Label>Starting Price</Label>
-                              <Input
-                                type="number"
-                                value={hotelFormData.starting_price || ""}
-                                onChange={(e) =>
-                                  setHotelFormData((prev) => ({ ...prev, starting_price: e.target.value }))
-                                }
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <Label>Phone</Label>
-                              <Input
-                                value={hotelFormData.phone || ""}
-                                onChange={(e) => setHotelFormData((prev) => ({ ...prev, phone: e.target.value }))}
-                              />
-                            </div>
-                            <div>
-                              <Label>Email</Label>
-                              <Input
-                                type="email"
-                                value={hotelFormData.email || ""}
-                                onChange={(e) => setHotelFormData((prev) => ({ ...prev, email: e.target.value }))}
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <Label>Website</Label>
-                            <Input
-                              value={hotelFormData.website || ""}
-                              onChange={(e) => setHotelFormData((prev) => ({ ...prev, website: e.target.value }))}
-                            />
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <div>
-                              <Label>Total Rooms</Label>
-                              <Input
-                                type="number"
-                                value={hotelFormData.total_rooms || ""}
-                                onChange={(e) => setHotelFormData((prev) => ({ ...prev, total_rooms: e.target.value }))}
-                              />
-                            </div>
-                            <div>
-                              <Label>Check-in</Label>
-                              <Input
-                                type="time"
-                                value={hotelFormData.check_in_time || ""}
-                                onChange={(e) =>
-                                  setHotelFormData((prev) => ({ ...prev, check_in_time: e.target.value }))
-                                }
-                              />
-                            </div>
-                            <div>
-                              <Label>Check-out</Label>
-                              <Input
-                                type="time"
-                                value={hotelFormData.check_out_time || ""}
-                                onChange={(e) =>
-                                  setHotelFormData((prev) => ({ ...prev, check_out_time: e.target.value }))
-                                }
-                              />
-                            </div>
-                          </div>
-                          <div className="flex space-x-2">
-                            <Button onClick={handleUpdateHotel} className="flex-1">
-                              Save Changes
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                setEditingHotel(null)
-                                setHotelFormData({})
-                              }}
-                              variant="outline"
-                              className="flex-1"
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        // View Details
-                        <div className="space-y-4">
-                          <div>
-                            <h3 className="font-semibold text-lg">{selectedHotel.name}</h3>
-                            <p className="text-sm text-gray-600">{selectedHotel.description}</p>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="flex items-center text-sm">
-                              <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                              <span>{selectedHotel.address}</span>
-                            </div>
-                            <div className="flex items-center text-sm">
-                              <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                              <span>{selectedHotel.phone}</span>
-                            </div>
-                            <div className="flex items-center text-sm">
-                              <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                              <span>{selectedHotel.email}</span>
-                            </div>
-                          </div>
-
-                          <div>
-                            <h4 className="font-medium mb-2">Hotel Statistics</h4>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <span className="text-gray-500">Price:</span>
-                                <span className="ml-1 font-medium">
-                                  ₹{selectedHotel.starting_price.toLocaleString()}
-                                </span>
+                            <div className="space-y-2">
+                              <div className="text-sm">
+                                <span className="font-medium">Starting Price:</span> ₹{submission.starting_price}/night
                               </div>
-                              <div>
-                                <span className="text-gray-500">Rooms:</span>
-                                <span className="ml-1 font-medium">{selectedHotel.total_rooms}</span>
+                              <div className="text-sm">
+                                <span className="font-medium">Total Rooms:</span>{" "}
+                                {submission.individual_rooms?.length || submission.total_rooms}
                               </div>
-                              <div>
-                                <span className="text-gray-500">Rating:</span>
-                                <span className="ml-1 font-medium">{selectedHotel.average_rating}★</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Reviews:</span>
-                                <span className="ml-1 font-medium">{selectedHotel.total_reviews}</span>
+                              <div className="text-sm">
+                                <span className="font-medium">Owner:</span> {submission.owner_info?.name}
                               </div>
                             </div>
                           </div>
 
-                          {selectedHotel.hotel_amenities && selectedHotel.hotel_amenities.length > 0 && (
-                            <div>
-                              <h4 className="font-medium mb-2">Amenities</h4>
+                          {submission.amenities && submission.amenities.length > 0 && (
+                            <div className="mb-4">
+                              <h4 className="font-medium mb-2">Amenities:</h4>
                               <div className="flex flex-wrap gap-1">
-                                {selectedHotel.hotel_amenities.map((amenity, index) => (
-                                  <Badge key={index} variant="outline" className="text-xs">
-                                    {amenity.amenities.name}
+                                {submission.amenities.map((amenity) => (
+                                  <Badge key={amenity} variant="outline" className="text-xs">
+                                    {amenity}
                                   </Badge>
                                 ))}
                               </div>
                             </div>
                           )}
 
-                          {selectedHotel.room_types && selectedHotel.room_types.length > 0 && (
-                            <div>
-                              <h4 className="font-medium mb-2">Room Types</h4>
+                          {submission.individual_rooms && submission.individual_rooms.length > 0 && (
+                            <div className="mb-4">
+                              <h4 className="font-medium mb-2">
+                                Individual Rooms ({submission.individual_rooms.length}):
+                              </h4>
                               <div className="space-y-2">
-                                {selectedHotel.room_types.map((room, index) => (
-                                  <div key={index} className="bg-gray-50 p-2 rounded text-sm">
-                                    <p className="font-medium">{room.name}</p>
-                                    <p className="text-gray-600">
-                                      ₹{room.base_price} • {room.available_rooms}/{room.total_rooms} available
-                                    </p>
+                                {submission.individual_rooms.slice(0, 3).map((room, index) => (
+                                  <div key={index} className="text-sm bg-gray-50 p-2 rounded">
+                                    <span className="font-medium">{room.room_name}</span> - Floor {room.floor}, ₹
+                                    {room.base_price}/night,
+                                    {room.has_ac ? " AC," : ""}
+                                    {room.has_attached_toilet ? " Attached Toilet" : " Common Toilet"}
                                   </div>
                                 ))}
+                                {submission.individual_rooms.length > 3 && (
+                                  <div className="text-sm text-gray-500">
+                                    +{submission.individual_rooms.length - 3} more rooms
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
 
-                          <div className="space-y-3">
-                            <div>
-                              <Label>Hotel Status</Label>
-                              <div className="flex space-x-2 mt-1">
-                                <Button
-                                  onClick={() => handleHotelStatusChange(selectedHotel.id, "active")}
-                                  variant={selectedHotel.status === "active" ? "default" : "outline"}
-                                  size="sm"
-                                >
-                                  Active
-                                </Button>
-                                <Button
-                                  onClick={() => handleHotelStatusChange(selectedHotel.id, "inactive")}
-                                  variant={selectedHotel.status === "inactive" ? "default" : "outline"}
-                                  size="sm"
-                                >
-                                  Inactive
-                                </Button>
-                                <Button
-                                  onClick={() => handleHotelStatusChange(selectedHotel.id, "suspended")}
-                                  variant={selectedHotel.status === "suspended" ? "destructive" : "outline"}
-                                  size="sm"
-                                >
-                                  Suspended
-                                </Button>
-                              </div>
-                            </div>
+                          <div className="flex space-x-2">
+                            <Button
+                              onClick={() => {
+                                setSelectedSubmission(submission)
+                                setShowSubmissionDialog(true)
+                              }}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <EyeIcon className="w-4 h-4 mr-2" />
+                              View Details
+                            </Button>
+                            <Button
+                              onClick={() => approveSubmission(submission)}
+                              className="bg-green-600 hover:bg-green-700"
+                              size="sm"
+                            >
+                              <CheckIcon className="w-4 h-4 mr-2" />
+                              Approve
+                            </Button>
+                            <Button onClick={() => rejectSubmission(submission.id)} variant="destructive" size="sm">
+                              <XIcon className="w-4 h-4 mr-2" />
+                              Reject
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
 
-                            <div>
-                              <Label>Featured Status</Label>
-                              <div className="mt-1">
-                                <Button
-                                  onClick={() => handleToggleFeatured(selectedHotel.id, selectedHotel.is_featured)}
-                                  variant={selectedHotel.is_featured ? "default" : "outline"}
-                                  size="sm"
-                                >
-                                  {selectedHotel.is_featured ? "Remove from Featured" : "Add to Featured"}
-                                </Button>
-                              </div>
+                  {submissions.filter((s) => s.status === "pending").length === 0 && (
+                    <Card>
+                      <CardContent className="text-center py-8">
+                        <FileTextIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p className="text-gray-500">No pending submissions</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Hotels Tab */}
+              <TabsContent value="hotels" className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">Manage Hotels</h2>
+                </div>
+
+                <div className="grid gap-4">
+                  {hotels.map((hotel) => (
+                    <Card key={hotel.id}>
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="flex items-center">
+                              <HotelIcon className="w-5 h-5 mr-2" />
+                              {hotel.name}
+                            </CardTitle>
+                            <p className="text-gray-600 mt-1">{hotel.short_description}</p>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Badge variant={hotel.status === "active" ? "default" : "secondary"}>{hotel.status}</Badge>
+                            {hotel.is_featured && <Badge variant="outline">Featured</Badge>}
+                            {hotel.is_verified && <Badge className="bg-green-100 text-green-800">Verified</Badge>}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center text-sm">
+                              <MapPinIcon className="w-4 h-4 mr-2 text-gray-500" />
+                              {hotel.address}, {hotel.area}
+                            </div>
+                            <div className="flex items-center text-sm">
+                              <PhoneIcon className="w-4 h-4 mr-2 text-gray-500" />
+                              {hotel.phone}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-sm">
+                              <span className="font-medium">Starting Price:</span> ₹{hotel.starting_price}/night
+                            </div>
+                            <div className="text-sm">
+                              <span className="font-medium">Total Rooms:</span> {hotel.total_rooms}
                             </div>
                           </div>
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card>
-                    <CardContent className="p-8 text-center text-gray-500">Select a hotel to view details</CardContent>
-                  </Card>
-                )}
+
+                        {hotel.amenities && hotel.amenities.length > 0 && (
+                          <div className="mb-4">
+                            <h4 className="font-medium mb-2">Current Amenities ({hotel.amenities.length}):</h4>
+                            <div className="flex flex-wrap gap-1">
+                              {hotel.amenities.map((amenity) => (
+                                <Badge key={amenity} variant="outline" className="text-xs">
+                                  {amenity}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex space-x-2">
+                          <Button
+                            onClick={() => {
+                              setSelectedHotel(hotel)
+                              setShowHotelDialog(true)
+                            }}
+                            variant="outline"
+                            size="sm"
+                          >
+                            <EditIcon className="w-4 h-4 mr-2" />
+                            Edit Amenities
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {hotels.length === 0 && (
+                    <Card>
+                      <CardContent className="text-center py-8">
+                        <HotelIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p className="text-gray-500">No hotels found</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Amenities Tab */}
+              <TabsContent value="amenities" className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">Manage Amenities</h2>
+                  <Button onClick={() => setShowAmenityDialog(true)}>
+                    <PlusIcon className="w-4 h-4 mr-2" />
+                    Add Amenity
+                  </Button>
+                </div>
+
+                <Card>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Icon</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {amenities.map((amenity) => (
+                          <TableRow key={amenity.id}>
+                            <TableCell className="font-medium">{amenity.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{amenity.category}</Badge>
+                            </TableCell>
+                            <TableCell>{amenity.icon}</TableCell>
+                            <TableCell>
+                              <Badge variant={amenity.is_active ? "default" : "secondary"}>
+                                {amenity.is_active ? "Active" : "Inactive"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                onClick={() => toggleAmenityStatus(amenity.id, amenity.is_active)}
+                                variant="outline"
+                                size="sm"
+                              >
+                                {amenity.is_active ? "Deactivate" : "Activate"}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Users Tab */}
+              <TabsContent value="users" className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">User Management</h2>
+                </div>
+                <Card>
+                  <CardContent className="text-center py-8">
+                    <UsersIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-gray-500">User management features coming soon</p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </section>
+      </main>
+      <Footer />
+
+      {/* Submission Details Dialog */}
+      <Dialog open={showSubmissionDialog} onOpenChange={setShowSubmissionDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Submission Details</DialogTitle>
+          </DialogHeader>
+          {selectedSubmission && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="font-semibold mb-2">Property Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium">Name:</span> {selectedSubmission.name}
+                    </div>
+                    <div>
+                      <span className="font-medium">Description:</span> {selectedSubmission.short_description}
+                    </div>
+                    <div>
+                      <span className="font-medium">Address:</span> {selectedSubmission.address}
+                    </div>
+                    <div>
+                      <span className="font-medium">Area:</span> {selectedSubmission.area}
+                    </div>
+                    <div>
+                      <span className="font-medium">Phone:</span> {selectedSubmission.phone}
+                    </div>
+                    <div>
+                      <span className="font-medium">Email:</span> {selectedSubmission.email}
+                    </div>
+                    <div>
+                      <span className="font-medium">Starting Price:</span> ₹{selectedSubmission.starting_price}/night
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">Owner Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium">Name:</span> {selectedSubmission.owner_info?.name}
+                    </div>
+                    <div>
+                      <span className="font-medium">Phone:</span> {selectedSubmission.owner_info?.phone}
+                    </div>
+                    <div>
+                      <span className="font-medium">Email:</span> {selectedSubmission.owner_info?.email}
+                    </div>
+                    <div>
+                      <span className="font-medium">Submitted:</span>{" "}
+                      {new Date(selectedSubmission.submission_date).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {selectedSubmission.individual_rooms && selectedSubmission.individual_rooms.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2">
+                    Individual Rooms ({selectedSubmission.individual_rooms.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {selectedSubmission.individual_rooms.map((room, index) => (
+                      <div key={index} className="border rounded p-3">
+                        <div className="font-medium">{room.room_name}</div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          Floor {room.floor} • {room.room_type} • ₹{room.base_price}/night • Max {room.max_occupancy}{" "}
+                          guests • {room.bed_type} bed
+                        </div>
+                        <div className="text-sm mt-2">
+                          <span className="font-medium">Features:</span>
+                          {room.has_ac && " AC,"}
+                          {room.has_ceiling_fan && " Ceiling Fan,"}
+                          {room.has_attached_toilet && " Attached Toilet,"}
+                          {room.has_cupboard && " Cupboard,"}
+                          {room.has_balcony_access && " Balcony"}
+                        </div>
+                        {room.room_amenities && room.room_amenities.length > 0 && (
+                          <div className="mt-2">
+                            <div className="flex flex-wrap gap-1">
+                              {room.room_amenities.map((amenity: string) => (
+                                <Badge key={amenity} variant="outline" className="text-xs">
+                                  {amenity}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setShowSubmissionDialog(false)}>
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    approveSubmission(selectedSubmission)
+                    setShowSubmissionDialog(false)
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <CheckIcon className="w-4 h-4 mr-2" />
+                  Approve
+                </Button>
+                <Button
+                  onClick={() => {
+                    rejectSubmission(selectedSubmission.id)
+                    setShowSubmissionDialog(false)
+                  }}
+                  variant="destructive"
+                >
+                  <XIcon className="w-4 h-4 mr-2" />
+                  Reject
+                </Button>
               </div>
             </div>
-          </TabsContent>
+          )}
+        </DialogContent>
+      </Dialog>
 
-          <TabsContent value="bookings">
-            <Card>
-              <CardHeader>
-                <CardTitle>Bookings Management</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-gray-500">Booking management features coming soon...</div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+      {/* Hotel Amenities Edit Dialog */}
+      <Dialog open={showHotelDialog} onOpenChange={setShowHotelDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Hotel Amenities - {selectedHotel?.name}</DialogTitle>
+          </DialogHeader>
+          {selectedHotel && (
+            <HotelAmenitiesEditor
+              hotel={selectedHotel}
+              amenities={amenities}
+              onSave={(amenities) => updateHotelAmenities(selectedHotel.id, amenities)}
+              onCancel={() => setShowHotelDialog(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Amenity Dialog */}
+      <Dialog open={showAmenityDialog} onOpenChange={setShowAmenityDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Amenity</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="amenity-name">Amenity Name</Label>
+              <Input
+                id="amenity-name"
+                value={newAmenity.name}
+                onChange={(e) => setNewAmenity((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="Enter amenity name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="amenity-icon">Icon (optional)</Label>
+              <Input
+                id="amenity-icon"
+                value={newAmenity.icon}
+                onChange={(e) => setNewAmenity((prev) => ({ ...prev, icon: e.target.value }))}
+                placeholder="e.g., wifi, car, pool"
+              />
+            </div>
+            <div>
+              <Label htmlFor="amenity-category">Category</Label>
+              <Select
+                value={newAmenity.category}
+                onValueChange={(value) => setNewAmenity((prev) => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">General</SelectItem>
+                  <SelectItem value="comfort">Comfort</SelectItem>
+                  <SelectItem value="connectivity">Connectivity</SelectItem>
+                  <SelectItem value="recreation">Recreation</SelectItem>
+                  <SelectItem value="dining">Dining</SelectItem>
+                  <SelectItem value="parking">Parking</SelectItem>
+                  <SelectItem value="wellness">Wellness</SelectItem>
+                  <SelectItem value="fitness">Fitness</SelectItem>
+                  <SelectItem value="service">Service</SelectItem>
+                  <SelectItem value="business">Business</SelectItem>
+                  <SelectItem value="family">Family</SelectItem>
+                  <SelectItem value="outdoor">Outdoor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setShowAmenityDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={addAmenity}>Add Amenity</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// Hotel Amenities Editor Component
+function HotelAmenitiesEditor({
+  hotel,
+  amenities,
+  onSave,
+  onCancel,
+}: {
+  hotel: Hotel
+  amenities: Amenity[]
+  onSave: (amenities: string[]) => void
+  onCancel: () => void
+}) {
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>(hotel.amenities || [])
+
+  const toggleAmenity = (amenityName: string) => {
+    setSelectedAmenities((prev) =>
+      prev.includes(amenityName) ? prev.filter((a) => a !== amenityName) : [...prev, amenityName],
+    )
+  }
+
+  const groupedAmenities = amenities.reduce(
+    (acc, amenity) => {
+      if (!acc[amenity.category]) {
+        acc[amenity.category] = []
+      }
+      acc[amenity.category].push(amenity)
+      return acc
+    },
+    {} as Record<string, Amenity[]>,
+  )
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="font-medium mb-2">Current Amenities ({selectedAmenities.length})</h3>
+        <div className="flex flex-wrap gap-1 mb-4">
+          {selectedAmenities.map((amenity) => (
+            <Badge key={amenity} variant="default" className="text-xs">
+              {amenity}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {Object.entries(groupedAmenities).map(([category, categoryAmenities]) => (
+          <div key={category}>
+            <h4 className="font-medium mb-2 capitalize">{category}</h4>
+            <div className="grid grid-cols-2 gap-2">
+              {categoryAmenities
+                .filter((amenity) => amenity.is_active)
+                .map((amenity) => (
+                  <div key={amenity.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={amenity.id}
+                      checked={selectedAmenities.includes(amenity.name)}
+                      onCheckedChange={() => toggleAmenity(amenity.name)}
+                    />
+                    <Label htmlFor={amenity.id} className="text-sm">
+                      {amenity.name}
+                    </Label>
+                  </div>
+                ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end space-x-2">
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button onClick={() => onSave(selectedAmenities)}>Save Changes</Button>
       </div>
     </div>
   )

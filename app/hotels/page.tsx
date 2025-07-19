@@ -1,350 +1,405 @@
 "use client"
 
+import { useState, useEffect } from "react"
+import Link from "next/link"
+import Image from "next/image"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Star, MapPin, Search, Wifi, Car, Utensils, Waves, Wind } from "lucide-react"
-import { useState, useEffect } from "react"
-import { getHotels, getHotelAreas, getAmenities } from "@/lib/hotels"
-import Link from "next/link"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
+import { Checkbox } from "@/components/ui/checkbox"
+import { MapPin, Star, Wifi, Car, Utensils, Waves, Search, Filter, Users, Eye } from "lucide-react"
+import { getAllHotels } from "@/lib/hotels"
 
 interface Hotel {
   id: string
   name: string
-  short_description: string
-  area: string
-  starting_price: number
+  slug: string
+  description: string
+  location: string
+  images: string[]
+  amenities: string[]
+  room_types: Array<{
+    base_price: number
+    max_occupancy: number
+  }>
   average_rating: number
   total_reviews: number
-  slug: string
-  hotel_images: Array<{
-    image_url: string
-    alt_text: string
-    is_primary: boolean
-  }>
-  hotel_amenities?: Array<{
-    amenities: {
-      name: string
-      icon: string
-    }
-  }>
-}
-
-interface Amenity {
-  id: string
-  name: string
-  icon: string
-  category: string
-}
-
-const iconMap: { [key: string]: any } = {
-  wifi: Wifi,
-  car: Car,
-  utensils: Utensils,
-  waves: Waves,
-  wind: Wind,
+  price_range: {
+    min: number
+    max: number
+  }
 }
 
 export default function HotelsPage() {
   const [hotels, setHotels] = useState<Hotel[]>([])
   const [filteredHotels, setFilteredHotels] = useState<Hotel[]>([])
   const [loading, setLoading] = useState(true)
-  const [areas, setAreas] = useState<string[]>([])
-  const [amenities, setAmenities] = useState<Amenity[]>([])
-
-  // Filter states
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedArea, setSelectedArea] = useState<string>("all")
-  const [priceRange, setPriceRange] = useState<string>("all")
+  const [selectedLocation, setSelectedLocation] = useState("all")
+  const [priceRange, setPriceRange] = useState([0, 10000])
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
-  const [sortBy, setSortBy] = useState<string>("rating")
+  const [sortBy, setSortBy] = useState("rating")
 
   useEffect(() => {
-    async function loadData() {
+    const fetchHotels = async () => {
       try {
-        setLoading(true)
-        const [hotelsData, areasData, amenitiesData] = await Promise.all([getHotels(), getHotelAreas(), getAmenities()])
+        const hotelsData = await getAllHotels()
+        setHotels(hotelsData)
+        setFilteredHotels(hotelsData)
 
-        setHotels(hotelsData as Hotel[])
-        setFilteredHotels(hotelsData as Hotel[])
-        setAreas(areasData)
-        setAmenities(amenitiesData)
+        // Set initial price range based on actual data
+        if (hotelsData.length > 0) {
+          const minPrice = Math.min(...hotelsData.map((h) => h.price_range.min))
+          const maxPrice = Math.max(...hotelsData.map((h) => h.price_range.max))
+          setPriceRange([minPrice, maxPrice])
+        }
       } catch (error) {
-        console.error("Error loading hotels data:", error)
+        console.error("Error fetching hotels:", error)
       } finally {
         setLoading(false)
       }
     }
 
-    loadData()
+    fetchHotels()
   }, [])
 
-  // Apply filters
   useEffect(() => {
-    let filtered = [...hotels]
+    let filtered = hotels
 
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(
         (hotel) =>
           hotel.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          hotel.short_description.toLowerCase().includes(searchTerm.toLowerCase()),
+          hotel.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          hotel.description.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
-    // Area filter
-    if (selectedArea !== "all") {
-      filtered = filtered.filter((hotel) => hotel.area === selectedArea)
+    // Location filter
+    if (selectedLocation !== "all") {
+      filtered = filtered.filter((hotel) => hotel.location.toLowerCase().includes(selectedLocation.toLowerCase()))
     }
 
     // Price range filter
-    if (priceRange !== "all") {
-      const [min, max] = priceRange.split("-").map(Number)
-      filtered = filtered.filter((hotel) => {
-        if (max) {
-          return hotel.starting_price >= min && hotel.starting_price <= max
-        } else {
-          return hotel.starting_price >= min
-        }
-      })
+    filtered = filtered.filter(
+      (hotel) => hotel.price_range.min >= priceRange[0] && hotel.price_range.max <= priceRange[1],
+    )
+
+    // Amenities filter
+    if (selectedAmenities.length > 0) {
+      filtered = filtered.filter((hotel) =>
+        selectedAmenities.every((amenity) =>
+          hotel.amenities.some((hotelAmenity) => hotelAmenity.toLowerCase().includes(amenity.toLowerCase())),
+        ),
+      )
     }
 
     // Sort
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "price-low":
-          return a.starting_price - b.starting_price
+          return a.price_range.min - b.price_range.min
         case "price-high":
-          return b.starting_price - a.starting_price
+          return b.price_range.min - a.price_range.min
         case "rating":
           return b.average_rating - a.average_rating
-        case "reviews":
-          return b.total_reviews - a.total_reviews
+        case "name":
+          return a.name.localeCompare(b.name)
         default:
           return 0
       }
     })
 
     setFilteredHotels(filtered)
-  }, [hotels, searchTerm, selectedArea, priceRange, selectedAmenities, sortBy])
+  }, [hotels, searchTerm, selectedLocation, priceRange, selectedAmenities, sortBy])
 
-  const clearFilters = () => {
-    setSearchTerm("")
-    setSelectedArea("all")
-    setPriceRange("all")
-    setSelectedAmenities([])
-    setSortBy("rating")
+  const getAmenityIcon = (amenity: string) => {
+    const iconMap: { [key: string]: any } = {
+      "Free WiFi": Wifi,
+      "Free Parking": Car,
+      Restaurant: Utensils,
+      "Swimming Pool": Waves,
+    }
+    const IconComponent = iconMap[amenity] || null
+    return IconComponent ? <IconComponent className="h-4 w-4" /> : null
+  }
+
+  const uniqueLocations = Array.from(new Set(hotels.map((hotel) => hotel.location)))
+  const commonAmenities = [
+    "Free WiFi",
+    "Free Parking",
+    "Restaurant",
+    "Swimming Pool",
+    "Air Conditioning",
+    "Spa Services",
+  ]
+
+  const handleAmenityChange = (amenity: string, checked: boolean) => {
+    if (checked) {
+      setSelectedAmenities([...selectedAmenities, amenity])
+    } else {
+      setSelectedAmenities(selectedAmenities.filter((a) => a !== amenity))
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-grow">
+          <div className="bg-[#003580] text-white py-12">
+            <div className="container mx-auto px-4 text-center">
+              <Skeleton className="h-10 w-64 mx-auto mb-4 bg-white/20" />
+              <Skeleton className="h-6 w-96 mx-auto bg-white/20" />
+            </div>
+          </div>
+          <div className="container mx-auto px-4 py-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+              <div className="md:col-span-1">
+                <Skeleton className="h-96 w-full" />
+              </div>
+              <div className="md:col-span-3">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {[...Array(6)].map((_, i) => (
+                    <Skeleton key={i} className="h-80 w-full" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
+
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="bg-[#003580] text-white py-8 sm:py-12">
-          <div className="container mx-auto px-4">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">Hotels in Yelagiri Hills</h1>
-            <p className="text-base sm:text-lg opacity-90">Discover the perfect accommodation for your stay</p>
+        <section className="bg-[#003580] text-white py-12">
+          <div className="container mx-auto px-4 text-center">
+            <h1 className="text-3xl md:text-4xl font-bold mb-4">Find Your Perfect Stay in Yelagiri</h1>
+            <p className="text-lg opacity-90">Discover amazing hotels and resorts in the beautiful hills of Yelagiri</p>
           </div>
         </section>
 
-        {/* Filters and Search */}
-        <section className="py-6 bg-gray-50 border-b">
-          <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search hotels..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Filters Sidebar */}
+            <div className="md:col-span-1">
+              <Card className="sticky top-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Filter className="h-5 w-5 mr-2" />
+                    Filters
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Search */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Search</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Search hotels..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
 
-              {/* Area Filter */}
-              <Select value={selectedArea} onValueChange={setSelectedArea}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Area" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Areas</SelectItem>
-                  {areas.map((area) => (
-                    <SelectItem key={area} value={area}>
-                      {area}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  {/* Location */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Location</label>
+                    <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Locations</SelectItem>
+                        {uniqueLocations.map((location) => (
+                          <SelectItem key={location} value={location}>
+                            {location}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              {/* Price Range */}
-              <Select value={priceRange} onValueChange={setPriceRange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Price Range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Prices</SelectItem>
-                  <SelectItem value="0-1500">Under ₹1,500</SelectItem>
-                  <SelectItem value="1500-3000">₹1,500 - ₹3,000</SelectItem>
-                  <SelectItem value="3000-5000">₹3,000 - ₹5,000</SelectItem>
-                  <SelectItem value="5000">Above ₹5,000</SelectItem>
-                </SelectContent>
-              </Select>
+                  {/* Price Range */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Price Range: ₹{priceRange[0]} - ₹{priceRange[1]}
+                    </label>
+                    <Slider
+                      value={priceRange}
+                      onValueChange={setPriceRange}
+                      max={15000}
+                      min={500}
+                      step={500}
+                      className="mt-2"
+                    />
+                  </div>
 
-              {/* Sort By */}
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sort By" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="rating">Highest Rated</SelectItem>
-                  <SelectItem value="price-low">Price: Low to High</SelectItem>
-                  <SelectItem value="price-high">Price: High to Low</SelectItem>
-                  <SelectItem value="reviews">Most Reviews</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Clear Filters */}
-              <Button variant="outline" onClick={clearFilters} className="w-full bg-transparent">
-                Clear Filters
-              </Button>
+                  {/* Amenities */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Amenities</label>
+                    <div className="space-y-2">
+                      {commonAmenities.map((amenity) => (
+                        <div key={amenity} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={amenity}
+                            checked={selectedAmenities.includes(amenity)}
+                            onCheckedChange={(checked) => handleAmenityChange(amenity, checked as boolean)}
+                          />
+                          <label htmlFor={amenity} className="text-sm flex items-center">
+                            {getAmenityIcon(amenity)}
+                            <span className="ml-2">{amenity}</span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
-            {/* Results Count */}
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-600">
-                {loading ? "Loading..." : `${filteredHotels.length} hotels found`}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Hotels Grid */}
-        <section className="py-8">
-          <div className="container mx-auto px-4">
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {[...Array(8)].map((_, i) => (
-                  <HotelCardSkeleton key={i} />
-                ))}
-              </div>
-            ) : filteredHotels.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredHotels.map((hotel) => (
-                  <HotelCard key={hotel.id} hotel={hotel} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="bg-gray-50 rounded-lg p-8 max-w-md mx-auto">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">No Hotels Found</h3>
-                  <p className="text-gray-600 mb-4">Try adjusting your filters or search terms</p>
-                  <Button onClick={clearFilters} variant="outline">
-                    Clear All Filters
-                  </Button>
+            {/* Hotels Grid */}
+            <div className="md:col-span-3">
+              {/* Sort and Results Count */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="text-gray-600">
+                  {filteredHotels.length} hotel{filteredHotels.length !== 1 ? "s" : ""} found
                 </div>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rating">Highest Rated</SelectItem>
+                    <SelectItem value="price-low">Price: Low to High</SelectItem>
+                    <SelectItem value="price-high">Price: High to Low</SelectItem>
+                    <SelectItem value="name">Name: A to Z</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+
+              {/* Hotels Grid */}
+              {filteredHotels.length === 0 ? (
+                <Card className="text-center py-12">
+                  <CardContent>
+                    <div className="text-gray-500 mb-4">
+                      <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <h3 className="text-lg font-semibold mb-2">No hotels found</h3>
+                      <p>Try adjusting your filters or search terms</p>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setSearchTerm("")
+                        setSelectedLocation("all")
+                        setSelectedAmenities([])
+                        setPriceRange([0, 10000])
+                      }}
+                      variant="outline"
+                    >
+                      Clear Filters
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {filteredHotels.map((hotel) => (
+                    <Card key={hotel.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                      <div className="relative">
+                        <Image
+                          src={hotel.images[0] || "/placeholder.jpg"}
+                          alt={hotel.name}
+                          width={400}
+                          height={200}
+                          className="w-full h-48 object-cover"
+                        />
+                        <div className="absolute top-2 right-2">
+                          <Badge className="bg-[#0071C2] text-white">
+                            <Star className="h-3 w-3 mr-1 fill-current" />
+                            {hotel.average_rating}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <CardContent className="p-4">
+                        <div className="mb-3">
+                          <h3 className="text-lg font-semibold mb-1">{hotel.name}</h3>
+                          <div className="flex items-center text-gray-600 text-sm mb-2">
+                            <MapPin className="h-4 w-4 mr-1" />
+                            <span>{hotel.location}</span>
+                          </div>
+                          <p className="text-gray-600 text-sm line-clamp-2">{hotel.description}</p>
+                        </div>
+
+                        {/* Amenities */}
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {hotel.amenities.slice(0, 4).map((amenity) => (
+                            <Badge key={amenity} variant="secondary" className="text-xs">
+                              {amenity}
+                            </Badge>
+                          ))}
+                          {hotel.amenities.length > 4 && (
+                            <Badge variant="secondary" className="text-xs">
+                              +{hotel.amenities.length - 4} more
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Price and Occupancy */}
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Users className="h-4 w-4 mr-1" />
+                            <span>Up to {Math.max(...hotel.room_types.map((rt) => rt.max_occupancy))} guests</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-[#0071C2]">
+                              ₹{hotel.price_range.min.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-gray-600">per night</div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                          <Button asChild className="flex-1 bg-[#0071C2] hover:bg-[#005999]">
+                            <Link href={`/hotels/${hotel.slug}`}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </Link>
+                          </Button>
+                        </div>
+
+                        {/* Reviews */}
+                        <div className="mt-3 text-xs text-gray-600 text-center">
+                          {hotel.total_reviews} review{hotel.total_reviews !== 1 ? "s" : ""}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </section>
+        </div>
       </main>
+
       <Footer />
     </div>
-  )
-}
-
-function HotelCard({ hotel }: { hotel: Hotel }) {
-  const primaryImage = hotel.hotel_images?.find((img) => img.is_primary) || hotel.hotel_images?.[0]
-
-  return (
-    <Link href={`/hotels/${hotel.slug}`}>
-      <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer h-full">
-        <div className="relative">
-          <img
-            src={primaryImage?.image_url || "/placeholder.svg?height=200&width=300"}
-            alt={primaryImage?.alt_text || hotel.name}
-            className="w-full h-48 object-cover"
-          />
-          <div className="absolute top-2 right-2 flex items-center bg-[#003580] text-white px-2 py-1 rounded text-sm">
-            <span className="font-bold mr-1">{hotel.average_rating}</span>
-            <Star className="w-4 h-4" />
-          </div>
-        </div>
-        <CardContent className="p-4 flex flex-col h-full">
-          <div className="flex-grow">
-            <h3 className="font-semibold text-lg mb-1 line-clamp-2">{hotel.name}</h3>
-            <div className="flex items-center text-sm text-gray-600 mb-2">
-              <MapPin className="w-4 h-4 mr-1" />
-              {hotel.area}
-            </div>
-            <p className="text-sm text-gray-500 mb-3 line-clamp-2">{hotel.short_description}</p>
-
-            {/* Amenities */}
-            {hotel.hotel_amenities && hotel.hotel_amenities.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-3">
-                {hotel.hotel_amenities.slice(0, 3).map((amenity, index) => {
-                  const IconComponent = iconMap[amenity.amenities.icon] || Wifi
-                  return (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      <IconComponent className="w-3 h-3 mr-1" />
-                      {amenity.amenities.name}
-                    </Badge>
-                  )
-                })}
-                {hotel.hotel_amenities.length > 3 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{hotel.hotel_amenities.length - 3} more
-                  </Badge>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-between items-center mt-auto pt-3 border-t">
-            <div>
-              <p className="text-xs text-gray-500">Starting from</p>
-              <p className="text-lg font-bold text-[#0071C2]">₹{hotel.starting_price.toLocaleString()}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">{hotel.total_reviews} reviews</p>
-              <Button className="bg-[#0071C2] hover:bg-[#005999] text-white text-sm px-4 py-2 mt-1">
-                View Details
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
-  )
-}
-
-function HotelCardSkeleton() {
-  return (
-    <Card className="overflow-hidden h-full">
-      <div className="w-full h-48 bg-gray-200 animate-pulse" />
-      <CardContent className="p-4">
-        <div className="space-y-3">
-          <div className="h-5 bg-gray-200 rounded animate-pulse" />
-          <div className="h-4 bg-gray-200 rounded w-2/3 animate-pulse" />
-          <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
-          <div className="flex gap-2">
-            <div className="h-6 bg-gray-200 rounded w-16 animate-pulse" />
-            <div className="h-6 bg-gray-200 rounded w-16 animate-pulse" />
-          </div>
-        </div>
-        <div className="flex justify-between items-center mt-4 pt-3 border-t">
-          <div className="space-y-1">
-            <div className="h-3 bg-gray-200 rounded w-16 animate-pulse" />
-            <div className="h-5 bg-gray-200 rounded w-20 animate-pulse" />
-          </div>
-          <div className="h-8 bg-gray-200 rounded w-24 animate-pulse" />
-        </div>
-      </CardContent>
-    </Card>
   )
 }
