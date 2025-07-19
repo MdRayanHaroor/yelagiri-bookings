@@ -9,29 +9,11 @@ interface HotelDetailPageProps {
 }
 
 export default async function HotelDetailPage({ params }: HotelDetailPageProps) {
-  const { slug } = params
-
-  const hotel = await getHotelBySlug(slug)
+  const hotel = await getHotelBySlug(params.slug)
 
   if (!hotel) {
     notFound()
   }
 
   return <HotelDetailClient hotel={hotel} />
-}
-
-export async function generateMetadata({ params }: HotelDetailPageProps) {
-  const { slug } = params
-  const hotel = await getHotelBySlug(slug)
-
-  if (!hotel) {
-    return {
-      title: "Hotel Not Found",
-    }
-  }
-
-  return {
-    title: `${hotel.name} - Yelagiri Bookings`,
-    description: hotel.short_description || hotel.description || `Book your stay at ${hotel.name}`,
-  }
 }

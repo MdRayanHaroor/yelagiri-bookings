@@ -50,11 +50,17 @@ const activities = [
 export default function AboutPage() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [scrollY, setScrollY] = useState(0)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
+
     const handleScroll = () => setScrollY(window.scrollY)
-    window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("scroll", handleScroll)
+      return () => window.removeEventListener("scroll", handleScroll)
+    }
   }, [])
 
   const nextSlide = () => {
@@ -64,6 +70,33 @@ export default function AboutPage() {
   const prevSlide = () => {
     setCurrentSlide((prev) => (prev - 1 + attractions.length) % attractions.length)
   }
+
+  // Don't render parallax effects until mounted
+  const parallaxStyle = mounted
+    ? {
+        backgroundAttachment: window.innerWidth > 768 ? "fixed" : "scroll",
+      }
+    : {}
+
+  const parallaxTransform = mounted
+    ? {
+        transform: `translateY(${scrollY * 0.5}px)`,
+      }
+    : {}
+
+  const heroTextTransform = mounted
+    ? {
+        transform: `translateY(${scrollY * 0.3}px)`,
+        opacity: Math.max(0, 1 - scrollY / 500),
+      }
+    : {}
+
+  const heroSubtextTransform = mounted
+    ? {
+        transform: `translateY(${scrollY * 0.2}px)`,
+        opacity: Math.max(0, 1 - scrollY / 600),
+      }
+    : {}
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -76,31 +109,20 @@ export default function AboutPage() {
             backgroundImage: `url('/placeholder.svg?height=800&width=1200')`,
             backgroundSize: "cover",
             backgroundPosition: "center",
-            backgroundAttachment: window.innerWidth > 768 ? "fixed" : "scroll",
+            ...parallaxStyle,
           }}
         >
-          <div
-            className="absolute inset-0 bg-black bg-opacity-40"
-            style={{
-              transform: `translateY(${scrollY * 0.5}px)`,
-            }}
-          />
+          <div className="absolute inset-0 bg-black bg-opacity-40" style={parallaxTransform} />
           <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
             <h1
               className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 sm:mb-6 animate-fade-in"
-              style={{
-                transform: `translateY(${scrollY * 0.3}px)`,
-                opacity: Math.max(0, 1 - scrollY / 500),
-              }}
+              style={heroTextTransform}
             >
               Yelagiri Hills
             </h1>
             <p
               className="text-base sm:text-lg md:text-xl lg:text-2xl mb-6 sm:mb-8 max-w-2xl mx-auto leading-relaxed"
-              style={{
-                transform: `translateY(${scrollY * 0.2}px)`,
-                opacity: Math.max(0, 1 - scrollY / 600),
-              }}
+              style={heroSubtextTransform}
             >
               A pristine hill station where nature meets tranquility
             </p>

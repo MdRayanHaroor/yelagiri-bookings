@@ -191,6 +191,72 @@ export async function getHotels(): Promise<Hotel[]> {
   }
 }
 
+// Add the missing getAllHotels function
+export async function getAllHotels(): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from("hotels")
+      .select(`
+        *,
+        hotel_images (
+          id,
+          image_url,
+          alt_text,
+          is_primary
+        ),
+        room_types (
+          id,
+          name,
+          description,
+          base_price,
+          max_occupancy,
+          bed_type,
+          has_ac,
+          has_wifi,
+          has_tv
+        ),
+        hotel_amenities (
+          id,
+          amenities (
+            id,
+            name,
+            category,
+            icon
+          )
+        )
+      `)
+      .order("name")
+
+    if (error) {
+      console.error("Error fetching all hotels:", error)
+      return []
+    }
+
+    // Transform data to match expected structure
+    const transformedHotels = (data || []).map((hotel: any) => ({
+      id: hotel.id,
+      name: hotel.name,
+      slug: hotel.slug,
+      description: hotel.description || hotel.short_description || "",
+      location: hotel.area || "Yelagiri",
+      images: hotel.hotel_images?.map((img: any) => img.image_url) || ["/placeholder.jpg"],
+      amenities: hotel.hotel_amenities?.map((ha: any) => ha.amenities.name) || [],
+      room_types: hotel.room_types || [],
+      average_rating: hotel.average_rating || 4.0,
+      total_reviews: hotel.total_reviews || 0,
+      price_range: {
+        min: hotel.starting_price || 1000,
+        max: (hotel.starting_price || 1000) * 2,
+      },
+    }))
+
+    return transformedHotels
+  } catch (error) {
+    console.error("Error in getAllHotels:", error)
+    return []
+  }
+}
+
 export async function getHotelBySlug(slug: string): Promise<Hotel | null> {
   try {
     console.log(`🔍 Fetching hotel by slug: ${slug}`)
