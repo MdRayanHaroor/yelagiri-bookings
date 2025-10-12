@@ -31,9 +31,13 @@ export function Header() {
       setUser(session?.user ?? null)
       setLoading(false)
     })
-
+    
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (user) console.log("User details (use-effect):", user)
+  }, [user])  
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -79,7 +83,7 @@ export function Header() {
               <div className="flex items-center space-x-2">
                 <div className="flex items-center space-x-2 text-sm text-gray-600">
                   <User className="h-4 w-4" />
-                  <span>{user.email}</span>
+                  <span>{user.user_metadata?.full_name || user.email}</span>
                 </div>
                 <Button
                   variant="outline"
