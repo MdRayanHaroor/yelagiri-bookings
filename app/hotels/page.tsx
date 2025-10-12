@@ -43,6 +43,10 @@ export default function HotelsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedLocation, setSelectedLocation] = useState("all")
   const [priceRange, setPriceRange] = useState([0, 10000])
+  const initialPriceRange = [500, 10000];
+  const initialLocation = "all";
+  const initialAmenities: string[] = [];
+  const initialSearchTerm = "";
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
   const [sortBy, setSortBy] = useState("rating")
 
@@ -148,6 +152,13 @@ export default function HotelsPage() {
       setSelectedAmenities(selectedAmenities.filter((a) => a !== amenity))
     }
   }
+
+  const resetFilters = () => {
+    setSearchTerm(initialSearchTerm);
+    setSelectedLocation(initialLocation);
+    setPriceRange(initialPriceRange);
+    setSelectedAmenities(initialAmenities);
+  };
 
   if (loading) {
     return (
@@ -270,6 +281,22 @@ export default function HotelsPage() {
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Clear Filters Button (New Feature) */}
+                  <div className="pt-2">
+                    {/* Use Button with variant="outline" for a clean look, 
+                    and make it full width (w-full).
+                    The 'type="button"' is important to prevent accidental form submission.
+                */}
+                    <Button
+                      variant="outline"
+                      onClick={resetFilters} // Assuming this function exists or will be created
+                      className="w-full text-red-600 border-red-300 hover:bg-red-50"
+                      type="button"
+                    >
+                      Clear Filters
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

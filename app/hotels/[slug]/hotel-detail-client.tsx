@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Star,
@@ -153,9 +152,8 @@ export default function HotelDetailClient({ hotel }: HotelDetailClientProps) {
                   {images.map((_, index) => (
                     <button
                       key={index}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        index === currentImageIndex ? "bg-white" : "bg-white/50"
-                      }`}
+                      className={`w-2 h-2 rounded-full transition-colors ${index === currentImageIndex ? "bg-white" : "bg-white/50"
+                        }`}
                       onClick={() => setCurrentImageIndex(index)}
                     />
                   ))}
@@ -288,8 +286,8 @@ export default function HotelDetailClient({ hotel }: HotelDetailClientProps) {
             </div>
 
             {/* Booking Sidebar */}
-            <div className="lg:col-span-1">
-              <Card className="sticky top-8">
+            <div className="lg:col-span-1 space-y-6">
+              <Card className="top-8 z-10">
                 <CardHeader>
                   <CardTitle>Book Your Stay</CardTitle>
                 </CardHeader>
@@ -297,35 +295,66 @@ export default function HotelDetailClient({ hotel }: HotelDetailClientProps) {
                   {/* Check-in Date */}
                   <div>
                     <label className="text-sm font-medium mb-2 block">Check-in</label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {checkInDate ? format(checkInDate, "PPP") : "Select date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={checkInDate} onSelect={setCheckInDate} initialFocus />
-                      </PopoverContent>
-                    </Popover>
+                    <div className="relative w-full">
+                      <input
+                        type="date"
+                        value={checkInDate ? format(checkInDate, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setCheckInDate(new Date(e.target.value))
+                          } else {
+                            setCheckInDate(undefined)
+                          }
+                        }}
+                        // Assuming 'today' is defined in this component's scope (new Date() initialized to midnight)
+                        min={format(new Date(), 'yyyy-MM-dd')}
+                        className={cn(
+                          "w-full text-left font-normal bg-transparent border border-gray-300 hover:bg-gray-50 py-2 sm:py-3 text-sm sm:text-base rounded-md pl-10 pr-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer",
+                          !checkInDate ? "text-transparent" : "text-gray-900"
+                        )}
+                        style={{ colorScheme: 'light' }}
+                      />
+                      <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 flex-shrink-0 text-gray-500 pointer-events-none" />
+                      {/* Conditional Label */}
+                      {!checkInDate && (
+                        <span className="absolute left-10 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none text-sm sm:text-base">
+                          Select date
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Check-out Date */}
                   <div>
                     <label className="text-sm font-medium mb-2 block">Check-out</label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {checkOutDate ? format(checkOutDate, "PPP") : "Select date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={checkOutDate} onSelect={setCheckOutDate} initialFocus />
-                      </PopoverContent>
-                    </Popover>
+                    <div className="relative w-full">
+                      <input
+                        type="date"
+                        value={checkOutDate ? format(checkOutDate, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setCheckOutDate(new Date(e.target.value))
+                          } else {
+                            setCheckOutDate(undefined)
+                          }
+                        }}
+                        // Assuming 'today' is defined, using it as a simple min
+                        min={format(new Date(), 'yyyy-MM-dd')}
+                        className={cn(
+                          "w-full text-left font-normal bg-transparent border border-gray-300 hover:bg-gray-50 py-2 sm:py-3 text-sm sm:text-base rounded-md pl-10 pr-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer",
+                          !checkOutDate ? "text-transparent" : "text-gray-900"
+                        )}
+                        style={{ colorScheme: 'light' }}
+                      />
+                      <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 flex-shrink-0 text-gray-500 pointer-events-none" />
+                      {/* Conditional Label */}
+                      {!checkOutDate && (
+                        <span className="absolute left-10 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none text-sm sm:text-base">
+                          Select date
+                        </span>
+                      )}
+                    </div>
                   </div>
-
                   {/* Guests */}
                   <div>
                     <label className="text-sm font-medium mb-2 block">Guests</label>

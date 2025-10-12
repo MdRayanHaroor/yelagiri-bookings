@@ -4,8 +4,6 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon, Star, MapPin } from "lucide-react"
 import { useState, useEffect } from "react"
 import { format, isBefore, addDays } from "date-fns"
@@ -209,58 +207,69 @@ function SearchForm() {
 
         {/* Date Pickers */}
         <div className="sm:col-span-2 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal bg-white text-gray-900 border-gray-300 hover:bg-gray-50 hover:text-gray-900 py-2 sm:py-3 text-sm sm:text-base",
-                  !checkInDate && "text-gray-500",
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
-                <span className="truncate">{checkInDate ? format(checkInDate, "MMM dd") : "Check-in"}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={checkInDate}
-                onSelect={setCheckInDate}
-                disabled={(date) => isBefore(date, today) || (checkOutDate && isBefore(date, checkOutDate))}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
+          <div className="relative w-full">
+            <input
+              type="date"
+              value={checkInDate ? format(checkInDate, 'yyyy-MM-dd') : ''}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setCheckInDate(new Date(e.target.value))
+                } else {
+                  setCheckInDate(undefined)
+                }
+              }}
+              min={format(today, 'yyyy-MM-dd')}
+              // Apply the conditional classes here
+              className={cn(
+                "w-full text-left font-normal bg-white border border-gray-300 hover:bg-gray-50 py-2 sm:py-3 text-sm sm:text-base rounded-md pl-10 pr-3 appearance-none focus:outline-none focus:ring-2 focus:ring-[#0071C2] cursor-pointer",
+                // CORE FIX: Set text-transparent when input is empty
+                !checkInDate ? "text-transparent" : "text-gray-900"
+              )}
+              // Inline style to fix date picker icon color issue in some browsers
+              style={{ colorScheme: 'light' }}
+            />
+            <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 flex-shrink-0 text-gray-500 pointer-events-none" />
+            {/* The custom label remains the same */}
+            {!checkInDate && (
+              <span className="absolute left-10 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none text-sm sm:text-base">
+                Check-in
+              </span>
+            )}
+          </div>
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal bg-white text-gray-900 border-gray-300 hover:bg-gray-50 hover:text-gray-900 py-2 sm:py-3 text-sm sm:text-base",
-                  !checkOutDate && "text-gray-500",
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
-                <span className="truncate">{checkOutDate ? format(checkOutDate, "MMM dd") : "Check-out"}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={checkOutDate}
-                onSelect={setCheckOutDate}
-                disabled={(date) => isBefore(date, today) || (checkInDate && isBefore(date, addDays(checkInDate, 1)))}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
+          <div className="relative w-full">
+            <input
+              type="date"
+              value={checkOutDate ? format(checkOutDate, 'yyyy-MM-dd') : ''}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setCheckOutDate(new Date(e.target.value))
+                } else {
+                  setCheckOutDate(undefined)
+                }
+              }}
+              min={format(today, 'yyyy-MM-dd')} // Set minimum selectable date to today
+              placeholder="Check-out"
+              className={cn(
+                "w-full text-left font-normal bg-white border border-gray-300 hover:bg-gray-50 py-2 sm:py-3 text-sm sm:text-base rounded-md pl-10 pr-3 appearance-none focus:outline-none focus:ring-2 focus:ring-[#0071C2] cursor-pointer",
+                // CORE FIX: Set text-transparent when input is empty
+                !checkOutDate ? "text-transparent" : "text-gray-900"
+              )}
+              // Inline style to fix date picker icon color issue in some browsers
+              style={{ colorScheme: 'light' }}
+            />
+            <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 flex-shrink-0 text-gray-500 pointer-events-none" />
+            {!checkOutDate && (
+              <span className="absolute left-10 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none text-sm sm:text-base">
+                Check-out
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Search Button */}
         <div className="sm:col-span-2 lg:col-span-1">
-          <Button className="w-full bg-[#0071C2] hover:bg-[#005999] text-white py-2 sm:py-3 text-sm sm:text-base font-medium">
+          <Button className="w-full bg-[#0071C2] hover:bg-[#005999] text-white py-2 sm:py-3 text-sm sm:text-base font-medium h-full">
             Search Hotels
           </Button>
         </div>
