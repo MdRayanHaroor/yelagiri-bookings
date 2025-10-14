@@ -21,13 +21,7 @@ export default function SignInPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
-  // Sign In Form State
-  const [signInData, setSignInData] = useState({
-    email: "",
-    password: "",
-  })
-
-  // Sign Up Form State
+  const [signInData, setSignInData] = useState({ email: "", password: "" })
   const [signUpData, setSignUpData] = useState({
     email: "",
     password: "",
@@ -43,21 +37,25 @@ export default function SignInPage() {
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: signInData.email,
+        email: signInData.email.trim(),
         password: signInData.password,
       })
 
       if (error) {
-        setError(error.message)
+        // Provide helpful error hints
+        if (error.message.toLowerCase().includes("email not confirmed")) {
+          setError("Email not confirmed. Please check your inbox or contact support.")
+        } else {
+          setError(error.message)
+        }
         return
       }
 
-      if (data.user) {
-        router.push("/")
-        router.refresh()
-      }
-    } catch (err) {
-      setError("An unexpected error occurred")
+      const role = data.user?.user_metadata?.role
+      router.push(role === "admin" ? "/admin" : "/")
+      router.refresh()
+    } catch (err: any) {
+      setError(err?.message || "An unexpected error occurred")
     } finally {
       setLoading(false)
     }
@@ -74,7 +72,6 @@ export default function SignInPage() {
       setLoading(false)
       return
     }
-
     if (signUpData.password.length < 6) {
       setError("Password must be at least 6 characters long")
       setLoading(false)
@@ -83,35 +80,26 @@ export default function SignInPage() {
 
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: signUpData.email,
+        email: signUpData.email.trim(),
         password: signUpData.password,
         options: {
           data: {
             full_name: signUpData.fullName,
             phone: signUpData.phone,
-            role: "guest" as const, // Explicit type casting
+            role: "guest",
           },
         },
       })
-
       if (error) {
         setError(error.message)
         return
       }
-
       if (data.user) {
-        setSuccess("Account created successfully! Please check your email to verify your account.")
-        setSignUpData({
-          email: "",
-          password: "",
-          confirmPassword: "",
-          fullName: "",
-          phone: "",
-        })
+        setSuccess("Account created! Please check your email to verify.")
+        setSignUpData({ email: "", password: "", confirmPassword: "", fullName: "", phone: "" })
       }
-    } catch (err) {
-      console.error("Sign up error:", err)
-      setError("An unexpected error occurred during sign up")
+    } catch (err: any) {
+      setError(err?.message || "An unexpected error occurred during sign up")
     } finally {
       setLoading(false)
     }
@@ -154,7 +142,6 @@ export default function SignInPage() {
                   <AlertDescription className="text-red-800">{error}</AlertDescription>
                 </Alert>
               )}
-
               {success && (
                 <Alert className="mt-4 border-green-200 bg-green-50">
                   <AlertDescription className="text-green-800">{success}</AlertDescription>
@@ -190,6 +177,7 @@ export default function SignInPage() {
                         type="button"
                         className="absolute inset-y-0 right-0 pr-3 flex items-center"
                         onClick={() => setShowPassword(!showPassword)}
+                        aria-label="Toggle password visibility"
                       >
                         {showPassword ? (
                           <EyeOff className="h-4 w-4 text-gray-400" />
@@ -206,9 +194,10 @@ export default function SignInPage() {
                 </form>
 
                 <div className="text-center text-sm text-gray-600">
-                  <p>Demo accounts:</p>
-                  <p>Admin: admin@yelagiribookings.com / admin123</p>
-                  <p>Guest: guest@yelagiribookings.com / guest123</p>
+                  <p>Demo admin:</p>
+                  <p>
+                    <code>admin@yelagiribookings.com</code> / <code>Admin#2025!</code>
+                  </p>
                 </div>
               </TabsContent>
 
@@ -265,6 +254,7 @@ export default function SignInPage() {
                         type="button"
                         className="absolute inset-y-0 right-0 pr-3 flex items-center"
                         onClick={() => setShowPassword(!showPassword)}
+                        aria-label="Toggle password visibility"
                       >
                         {showPassword ? (
                           <EyeOff className="h-4 w-4 text-gray-400" />

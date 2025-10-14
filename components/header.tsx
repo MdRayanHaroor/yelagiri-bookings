@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, User, LogOut } from "lucide-react"
+import { Menu, User, LogOut, Shield } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
@@ -13,31 +13,25 @@ export function Header() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
-    const getSession = async () => {
+    let mounted = true
+    const init = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession()
+      if (!mounted) return
       setUser(session?.user ?? null)
       setLoading(false)
     }
-
-    getSession()
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    init()
+    const { data } = supabase.auth.onAuthStateChange((_evt, session) => {
       setUser(session?.user ?? null)
       setLoading(false)
     })
-    
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      data.subscription.unsubscribe()
+    }
   }, [])
-
-  useEffect(() => {
-    if (user) console.log("User details (use-effect):", user)
-  }, [user])  
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -50,11 +44,12 @@ export function Header() {
     { name: "Contact", href: "/contact" },
   ]
 
+  const isAdmin = user?.user_metadata?.role === "admin"
+
   return (
     <header className="bg-white shadow-sm border-b">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-[#0071C2] rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">YB</span>
@@ -62,7 +57,6 @@ export function Header() {
             <span className="text-xl font-bold text-gray-900">Yelagiri Bookings</span>
           </Link>
 
-          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
             {navigation.map((item) => (
               <Link
@@ -73,12 +67,20 @@ export function Header() {
                 {item.name}
               </Link>
             ))}
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="text-gray-600 hover:text-[#0071C2] font-medium transition-colors flex items-center gap-1"
+              >
+                <Shield className="h-4 w-4" />
+                Admin
+              </Link>
+            )}
           </nav>
 
-          {/* Auth Section */}
           <div className="hidden md:flex items-center space-x-4">
             {loading ? (
-              <div className="w-20 h-8 bg-gray-200 animate-pulse rounded"></div>
+              <div className="w-20 h-8 bg-gray-200 animate-pulse rounded" />
             ) : user ? (
               <div className="flex items-center space-x-2">
                 <div className="flex items-center space-x-2 text-sm text-gray-600">
@@ -105,7 +107,6 @@ export function Header() {
             </Button>
           </div>
 
-          {/* Mobile Menu */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="sm" className="md:hidden">
@@ -123,6 +124,15 @@ export function Header() {
                     {item.name}
                   </Link>
                 ))}
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="text-gray-600 hover:text-[#0071C2] font-medium py-2 flex items-center gap-1"
+                  >
+                    <Shield className="h-4 w-4" />
+                    Admin
+                  </Link>
+                )}
                 <div className="border-t pt-4 space-y-2">
                   {user ? (
                     <>
