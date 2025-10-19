@@ -2,39 +2,142 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, User, LogOut, Shield } from "lucide-react"
+import { Menu, User, LogOut, Shield, Building } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 export function Header() {
+  const router = useRouter()
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [hasProperties, setHasProperties] = useState(false)
+  const [checkingProperties, setCheckingProperties] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   useEffect(() => {
     let mounted = true
-    const init = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!mounted) return
-      setUser(session?.user ?? null)
-      setLoading(false)
+
+    // Get initial session
+    const getInitialSession = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+
+        if (error) {
+          console.error("Error getting session:", error)
+          return
+        }
+
+        if (mounted) {
+          setUser(session?.user ?? null)
+          if (session?.user) {
+            await checkUserProperties(session.user.id)
+          }
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error("Error in getInitialSession:", err)
+        if (mounted) {
+          setLoading(false)
+        }
+      }
     }
-    init()
-    const { data } = supabase.auth.onAuthStateChange((_evt, session) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
+
+    getInitialSession()
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (mounted) {
+        setUser(session?.user ?? null)
+
+        if (event === "SIGNED_OUT") {
+          setHasProperties(false)
+          setLoading(false)
+        } else if (session?.user) {
+          await checkUserProperties(session.user.id)
+          setLoading(false)
+        } else {
+          setLoading(false)
+        }
+      }
     })
+
     return () => {
       mounted = false
-      data.subscription.unsubscribe()
+      subscription?.unsubscribe()
     }
   }, [])
 
+  const checkUserProperties = async (userId: string) => {
+    setCheckingProperties(true)
+    try {
+      const { data, error } = await supabase
+        .from("hotels")
+        .select("id", { count: "exact" })
+        .eq("owner_id", userId)
+        .limit(1)
+
+      if (error) {
+        console.error("Error checking properties:", error)
+        setHasProperties(false)
+      } else {
+        setHasProperties(data && data.length > 0)
+      }
+    } catch (err) {
+      console.error("Error checking properties:", err)
+      setHasProperties(false)
+    } finally {
+      setCheckingProperties(false)
+    }
+  }
+
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    setIsSigningOut(true)
+    try {
+      const { error } = await supabase.auth.signOut()
+
+      if (error) {
+        console.error("Sign out error:", error)
+        alert("Error signing out. Please try again.")
+        setIsSigningOut(false)
+        return
+      }
+
+      // Clear local state
+      setUser(null)
+      setHasProperties(false)
+
+      // Clear session storage for bookings
+      sessionStorage.removeItem("bookingData")
+
+      // Redirect to home
+      router.push("/")
+      router.refresh()
+    } catch (err) {
+      console.error("Unexpected error during sign out:", err)
+      alert("Unexpected error. Please try again.")
+      setIsSigningOut(false)
+    }
+  }
+
+  const handlePropertyButtonClick = async () => {
+    if (!user) {
+      router.push("/signin?redirect=/list-property")
+      return
+    }
+
+    if (hasProperties) {
+      router.push("/my-property")
+    } else {
+      router.push("/list-property")
+    }
   }
 
   const navigation = [
@@ -88,13 +191,14 @@ export function Header() {
                   <span>{user.user_metadata?.full_name || user.email}</span>
                 </div>
                 <Button
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
                   variant="outline"
                   size="sm"
-                  onClick={handleSignOut}
-                  className="flex items-center space-x-1 bg-transparent"
+                  className="flex items-center space-x-1 bg-transparent hover:bg-red-50 hover:text-red-600"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>Sign Out</span>
+                  <span>{isSigningOut ? "Signing out..." : "Sign Out"}</span>
                 </Button>
               </div>
             ) : (
@@ -102,11 +206,22 @@ export function Header() {
                 <Link href="/signin">Sign In</Link>
               </Button>
             )}
-            <Button asChild variant="outline">
-              <Link href="/list-property">List Property</Link>
-            </Button>
+
+            {checkingProperties ? (
+              <div className="w-32 h-9 bg-gray-200 animate-pulse rounded" />
+            ) : (
+              <Button
+                onClick={handlePropertyButtonClick}
+                variant="outline"
+                className="flex items-center gap-2 bg-transparent hover:bg-blue-50 hover:text-[#0071C2]"
+              >
+                <Building className="h-4 w-4" />
+                {user && hasProperties ? "My Property" : "List Property"}
+              </Button>
+            )}
           </div>
 
+          {/* Mobile Menu */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="sm" className="md:hidden">
@@ -134,17 +249,20 @@ export function Header() {
                   </Link>
                 )}
                 <div className="border-t pt-4 space-y-2">
-                  {user ? (
+                  {loading ? (
+                    <div className="w-full h-8 bg-gray-200 animate-pulse rounded" />
+                  ) : user ? (
                     <>
                       <div className="text-sm text-gray-600 py-2">Signed in as {user.email}</div>
                       <Button
+                        onClick={handleSignOut}
+                        disabled={isSigningOut}
                         variant="outline"
                         size="sm"
-                        onClick={handleSignOut}
-                        className="w-full justify-start bg-transparent"
+                        className="w-full justify-start bg-transparent hover:bg-red-50 hover:text-red-600"
                       >
                         <LogOut className="h-4 w-4 mr-2" />
-                        Sign Out
+                        {isSigningOut ? "Signing out..." : "Sign Out"}
                       </Button>
                     </>
                   ) : (
@@ -152,9 +270,19 @@ export function Header() {
                       <Link href="/signin">Sign In</Link>
                     </Button>
                   )}
-                  <Button asChild variant="outline" className="w-full bg-transparent">
-                    <Link href="/list-property">List Property</Link>
-                  </Button>
+
+                  {checkingProperties ? (
+                    <div className="w-full h-8 bg-gray-200 animate-pulse rounded" />
+                  ) : (
+                    <Button
+                      onClick={handlePropertyButtonClick}
+                      variant="outline"
+                      className="w-full justify-start bg-transparent hover:bg-blue-50 hover:text-[#0071C2]"
+                    >
+                      <Building className="h-4 w-4 mr-2" />
+                      {user && hasProperties ? "My Property" : "List Property"}
+                    </Button>
+                  )}
                 </div>
               </div>
             </SheetContent>
