@@ -82,7 +82,6 @@ export function Header() {
         .from("hotels")
         .select("id", { count: "exact" })
         .eq("owner_id", userId)
-        .eq("status", "approved")
         .limit(1)
 
       if (error) {
