@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { supabase } from "@/lib/supabase"
-import { Plus, Edit2, Trash2, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { Plus, Edit2, Eye, EyeOff, AlertCircle, Power, PowerOff } from "lucide-react"
 import Link from "next/link"
 import {
   AlertDialog,
@@ -31,6 +31,7 @@ interface Property {
   is_verified: boolean
   is_featured: boolean
   slug: string
+  is_active: boolean
 }
 
 export default function MyPropertyPage() {
@@ -38,8 +39,9 @@ export default function MyPropertyPage() {
   const [properties, setProperties] = useState<Property[]>([])
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const [actionId, setActionId] = useState<string | null>(null)
+  const [actionType, setActionType] = useState<"deactivate" | "activate" | null>(null)
+  const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
     const checkAuthAndFetchProperties = async () => {
@@ -70,22 +72,28 @@ export default function MyPropertyPage() {
     checkAuthAndFetchProperties()
   }, [router])
 
-  const handleDelete = async () => {
-    if (!deleteId) return
+  const handleDeactivateActivate = async () => {
+    if (!actionId || !actionType) return
 
-    setDeleting(true)
+    setProcessing(true)
     try {
-      const { error } = await supabase.from("hotels").delete().eq("id", deleteId).eq("owner_id", user?.id)
+      const newStatus = actionType === "deactivate" ? false : true
+      const { error } = await supabase
+        .from("hotels")
+        .update({ is_active: newStatus })
+        .eq("id", actionId)
+        .eq("owner_id", user?.id)
 
       if (error) throw error
 
-      setProperties(properties.filter((p) => p.id !== deleteId))
-      setDeleteId(null)
+      setProperties(properties.map((p) => (p.id === actionId ? { ...p, is_active: newStatus } : p)))
+      setActionId(null)
+      setActionType(null)
     } catch (err) {
-      console.error("Error deleting property:", err)
-      alert("Failed to delete property")
+      console.error("Error updating property:", err)
+      alert("Failed to update property")
     } finally {
-      setDeleting(false)
+      setProcessing(false)
     }
   }
 
@@ -152,13 +160,19 @@ export default function MyPropertyPage() {
           ) : (
             <div className="grid gap-6">
               {properties.map((property) => (
-                <Card key={property.id} className="hover:shadow-lg transition-shadow">
+                <Card
+                  key={property.id}
+                  className={`hover:shadow-lg transition-shadow ${!property.is_active ? "opacity-60" : ""}`}
+                >
                   <CardContent className="pt-6">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                       {/* Property Info */}
                       <div className="flex-1">
                         <div className="flex flex-col gap-2 mb-3">
-                          <h3 className="text-xl font-semibold">{property.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-semibold">{property.name}</h3>
+                            {!property.is_active && <Badge className="bg-gray-400 text-white">Inactive</Badge>}
+                          </div>
                           <p className="text-gray-600 text-sm">{property.short_description}</p>
                         </div>
 
@@ -207,7 +221,7 @@ export default function MyPropertyPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex flex-col gap-2 md:w-32">
+                      <div className="flex flex-col gap-2 md:w-40">
                         <Button asChild variant="outline" size="sm" className="bg-transparent">
                           <Link href={`/my-property/${property.id}/edit`}>
                             <Edit2 className="h-4 w-4 mr-2" />
@@ -215,19 +229,40 @@ export default function MyPropertyPage() {
                           </Link>
                         </Button>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setDeleteId(property.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
+                        <Button asChild variant="default" size="sm" className="bg-[#0071C2] hover:bg-[#005999]">
+                          <Link href={`/hotels/${property.slug}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View
+                          </Link>
                         </Button>
 
-                        <Button asChild variant="default" size="sm" className="bg-[#0071C2] hover:bg-[#005999]">
-                          <Link href={`/hotels/${property.slug}`}>View</Link>
-                        </Button>
+                        {property.is_active ? (
+                          <Button
+                            onClick={() => {
+                              setActionId(property.id)
+                              setActionType("deactivate")
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          >
+                            <Power className="h-4 w-4 mr-2" />
+                            Deactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => {
+                              setActionId(property.id)
+                              setActionType("activate")
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          >
+                            <PowerOff className="h-4 w-4 mr-2" />
+                            Activate
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -246,6 +281,14 @@ export default function MyPropertyPage() {
                         </p>
                       </div>
                     )}
+
+                    {!property.is_active && (
+                      <div className="mt-4 pt-4 border-t bg-gray-50 -mx-6 -mb-6 px-6 py-3 rounded-b-lg">
+                        <p className="text-sm text-gray-700">
+                          This property is deactivated and not visible to guests. Click "Activate" to make it visible.
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -256,19 +299,29 @@ export default function MyPropertyPage() {
 
       <Footer />
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteId} onOpenChange={() => !deleting && setDeleteId(null)}>
+      {/* Deactivate/Activate Confirmation Dialog */}
+      <AlertDialog open={!!actionId} onOpenChange={() => !processing && setActionId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Property</AlertDialogTitle>
+            <AlertDialogTitle>
+              {actionType === "deactivate" ? "Deactivate Property" : "Activate Property"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this property? This action cannot be undone.
+              {actionType === "deactivate"
+                ? "Are you sure you want to deactivate this property? It will no longer be visible to guests, but you can reactivate it later."
+                : "Are you sure you want to activate this property? It will be visible to guests again."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex gap-4">
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700">
-              {deleting ? "Deleting..." : "Delete"}
+            <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeactivateActivate}
+              disabled={processing}
+              className={
+                actionType === "deactivate" ? "bg-orange-600 hover:bg-orange-700" : "bg-green-600 hover:bg-green-700"
+              }
+            >
+              {processing ? "Processing..." : actionType === "deactivate" ? "Deactivate" : "Activate"}
             </AlertDialogAction>
           </div>
         </AlertDialogContent>

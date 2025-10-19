@@ -82,6 +82,7 @@ export function Header() {
         .from("hotels")
         .select("id", { count: "exact" })
         .eq("owner_id", userId)
+        .eq("status", "approved")
         .limit(1)
 
       if (error) {
@@ -101,12 +102,31 @@ export function Header() {
   const handleSignOut = async () => {
     setIsSigningOut(true)
     try {
+      // Check if user exists before signing out
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        console.warn("No active session found")
+        setUser(null)
+        setHasProperties(false)
+        sessionStorage.removeItem("bookingData")
+        router.push("/")
+        router.refresh()
+        return
+      }
+
       const { error } = await supabase.auth.signOut()
 
       if (error) {
         console.error("Sign out error:", error)
-        alert("Error signing out. Please try again.")
-        setIsSigningOut(false)
+        // Even if there's an error, try to clear state
+        setUser(null)
+        setHasProperties(false)
+        sessionStorage.removeItem("bookingData")
+        router.push("/")
+        router.refresh()
         return
       }
 
@@ -122,7 +142,13 @@ export function Header() {
       router.refresh()
     } catch (err) {
       console.error("Unexpected error during sign out:", err)
-      alert("Unexpected error. Please try again.")
+      // Even on error, clear state and redirect
+      setUser(null)
+      setHasProperties(false)
+      sessionStorage.removeItem("bookingData")
+      router.push("/")
+      router.refresh()
+    } finally {
       setIsSigningOut(false)
     }
   }
