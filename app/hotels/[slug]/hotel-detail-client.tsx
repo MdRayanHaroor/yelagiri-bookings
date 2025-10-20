@@ -173,11 +173,11 @@ export function HotelDetailClient({ hotel, rooms, reviews }: HotelDetailClientPr
                 {[...Array(5)].map((_, i) => (
                   <Star
                     key={i}
-                    className={`h-5 w-5 ${i < Math.floor(hotel.rating) ? "fill-yellow-300 text-yellow-300" : "text-gray-300"}`}
+                    className={`h-5 w-5 ${i < Math.floor(hotel.rating ?? 0) ? "fill-yellow-300 text-yellow-300" : "text-gray-300"}`}
                   />
                 ))}
               </div>
-              <span>{hotel.rating.toFixed(1)}</span>
+              <span>{(hotel.rating ?? 0).toFixed(1)}</span>
               <span>({hotel.reviews_count} reviews)</span>
             </div>
           </div>

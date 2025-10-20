@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import { getHotelBySlug } from "@/lib/hotels"
-import HotelDetailClient from "./hotel-detail-client"
+import { HotelDetailClient } from "./hotel-detail-client"
 
 interface HotelDetailPageProps {
   params: {
@@ -15,5 +15,8 @@ export default async function HotelDetailPage({ params }: HotelDetailPageProps) 
     notFound()
   }
 
-  return <HotelDetailClient hotel={hotel} />
+  const rooms = await getRoomsByHotelId(hotel.id)
+  const reviews = await getHotelReviews(hotel.id)
+
+  return <HotelDetailClient hotel={hotel} rooms={rooms} reviews={reviews} />
 }
