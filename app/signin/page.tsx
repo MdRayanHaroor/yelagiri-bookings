@@ -5,8 +5,6 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -62,8 +60,6 @@ export default function SignInPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
-
       <main className="flex-grow flex items-center justify-center py-12 px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
@@ -120,8 +116,6 @@ export default function SignInPage() {
           </CardContent>
         </Card>
       </main>
-
-      <Footer />
     </div>
   )
 }

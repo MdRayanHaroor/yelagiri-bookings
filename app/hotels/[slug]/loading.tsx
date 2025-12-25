@@ -1,13 +1,9 @@
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export default function HotelDetailLoading() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
-
       <main className="flex-grow">
         {/* Breadcrumb Skeleton */}
         <div className="bg-gray-50 py-4">
@@ -147,8 +143,6 @@ export default function HotelDetailLoading() {
           </div>
         </div>
       </main>
-
-      <Footer />
     </div>
   )
 }

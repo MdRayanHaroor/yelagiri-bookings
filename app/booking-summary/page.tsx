@@ -15,17 +15,9 @@ import { AlertCircle, ArrowLeft, CheckCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
-interface BookingData {
-  hotelId: string
-  hotelName: string
-  checkIn: string
-  checkOut: string
-  guests: number
-  roomType: string
-  roomPrice: number
-  totalNights: number
-  totalPrice: number
-}
+import { getBookingData, type BookingData } from "@/lib/booking-store"
+
+// Removed local BookingData interface
 
 interface GuestFormData {
   fullName: string
@@ -44,7 +36,7 @@ export default function BookingSummaryPage() {
   const router = useRouter()
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [loading, setLoading] = useState(true)
-  const [bookingData, setBookingData] = useState<BookingData | null>(null)
+  const [bookingData, setBookingDataState] = useState<BookingData | null>(null)
   const [formData, setFormData] = useState<GuestFormData>({
     fullName: "",
     email: "",
@@ -69,15 +61,17 @@ export default function BookingSummaryPage() {
       setFormData((prev) => ({
         ...prev,
         email: session.user.email || "",
+        fullName: session.user.user_metadata?.full_name || prev.fullName,
       }))
 
-      // Get booking data from session storage
-      const stored = sessionStorage.getItem("bookingData")
+      // Get booking data from session storage using helper
+      const stored = getBookingData()
       if (!stored) {
+        // Only redirect if true absence of data, ensure getBookingData handles parsing errors safely
         router.push("/hotels")
         return
       }
-      setBookingData(JSON.parse(stored))
+      setBookingDataState(stored)
       setLoading(false)
     }
 
@@ -152,16 +146,16 @@ export default function BookingSummaryPage() {
           guest_name: formData.fullName,
           guest_email: formData.email,
           guest_phone: formData.phone,
-          check_in: bookingData.checkIn,
-          check_out: bookingData.checkOut,
+          check_in: bookingData.checkInDate.toISOString(),
+          check_out: bookingData.checkOutDate.toISOString(),
           number_of_guests: bookingData.guests,
-          room_type: bookingData.roomType,
+          room_type: bookingData.roomName, // Using roomName as room_type
           special_requests: formData.specialRequests || null,
           total_price: bookingData.totalPrice,
           status: "confirmed",
           created_at: new Date().toISOString(),
         },
-      ])
+      ]).select()
 
       if (error) {
         console.error("Error saving booking:", error)
@@ -234,13 +228,13 @@ export default function BookingSummaryPage() {
 
                 <div>
                   <p className="text-sm text-gray-600">Room Type</p>
-                  <p className="font-medium">{bookingData.roomType}</p>
+                  <p className="font-medium">{bookingData.roomName}</p>
                 </div>
 
                 <div>
                   <p className="text-sm text-gray-600">Check-in</p>
                   <p className="font-medium">
-                    {new Date(bookingData.checkIn).toLocaleDateString("en-IN", {
+                    {bookingData.checkInDate.toLocaleDateString("en-IN", {
                       weekday: "short",
                       year: "numeric",
                       month: "short",
@@ -252,7 +246,7 @@ export default function BookingSummaryPage() {
                 <div>
                   <p className="text-sm text-gray-600">Check-out</p>
                   <p className="font-medium">
-                    {new Date(bookingData.checkOut).toLocaleDateString("en-IN", {
+                    {bookingData.checkOutDate.toLocaleDateString("en-IN", {
                       weekday: "short",
                       year: "numeric",
                       month: "short",
@@ -269,15 +263,21 @@ export default function BookingSummaryPage() {
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">
-                      ₹{bookingData.roomPrice.toLocaleString()} × {bookingData.totalNights} night
-                      {bookingData.totalNights > 1 ? "s" : ""}
+                      ₹{bookingData.roomPrice.toLocaleString()} × {bookingData.nights} night
+                      {bookingData.nights > 1 ? "s" : ""}
                     </span>
                     <span className="font-medium">
-                      ₹{(bookingData.roomPrice * bookingData.totalNights).toLocaleString()}
+                      ₹{bookingData.baseAmount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Taxes & Fees (GST {(bookingData.taxRate * 100).toFixed(0)}%)</span>
+                    <span className="font-medium">
+                      ₹{bookingData.taxAmount.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between font-semibold text-base pt-2 border-t">
-                    <span>Total</span>
+                    <span>Total Amount</span>
                     <span className="text-[#0071C2]">₹{bookingData.totalPrice.toLocaleString()}</span>
                   </div>
                 </div>

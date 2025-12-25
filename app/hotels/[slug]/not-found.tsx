@@ -1,6 +1,4 @@
 import Link from "next/link"
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MapPin, Search, Home } from "lucide-react"
@@ -8,8 +6,6 @@ import { MapPin, Search, Home } from "lucide-react"
 export default function HotelNotFound() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
-
       <main className="flex-grow flex items-center justify-center py-12">
         <div className="container mx-auto px-4 max-w-2xl text-center">
           <Card>
@@ -52,8 +48,6 @@ export default function HotelNotFound() {
           </Card>
         </div>
       </main>
-
-      <Footer />
     </div>
   )
 }

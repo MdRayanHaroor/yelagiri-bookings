@@ -1,7 +1,5 @@
 "use client"
 
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ChevronLeft, ChevronRight, Mountain, Camera, TreePine, Waves, MapPin, Clock } from "lucide-react"
@@ -74,33 +72,32 @@ export default function AboutPage() {
   // Don't render parallax effects until mounted
   const parallaxStyle = mounted
     ? {
-        backgroundAttachment: window.innerWidth > 768 ? "fixed" : "scroll",
-      }
+      backgroundAttachment: window.innerWidth > 768 ? "fixed" : "scroll",
+    }
     : {}
 
   const parallaxTransform = mounted
     ? {
-        transform: `translateY(${scrollY * 0.5}px)`,
-      }
+      transform: `translateY(${scrollY * 0.5}px)`,
+    }
     : {}
 
   const heroTextTransform = mounted
     ? {
-        transform: `translateY(${scrollY * 0.3}px)`,
-        opacity: Math.max(0, 1 - scrollY / 500),
-      }
+      transform: `translateY(${scrollY * 0.3}px)`,
+      opacity: Math.max(0, 1 - scrollY / 500),
+    }
     : {}
 
   const heroSubtextTransform = mounted
     ? {
-        transform: `translateY(${scrollY * 0.2}px)`,
-        opacity: Math.max(0, 1 - scrollY / 600),
-      }
+      transform: `translateY(${scrollY * 0.2}px)`,
+      opacity: Math.max(0, 1 - scrollY / 600),
+    }
     : {}
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow">
         {/* Hero Section with Parallax Effect */}
         <section
@@ -174,9 +171,8 @@ export default function AboutPage() {
                 {attractions.map((_, index) => (
                   <button
                     key={index}
-                    className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full transition-colors ${
-                      index === currentSlide ? "bg-[#0071C2]" : "bg-gray-300"
-                    }`}
+                    className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full transition-colors ${index === currentSlide ? "bg-[#0071C2]" : "bg-gray-300"
+                      }`}
                     onClick={() => setCurrentSlide(index)}
                   />
                 ))}
@@ -264,7 +260,6 @@ export default function AboutPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </div>
   )
 }

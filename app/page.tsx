@@ -1,7 +1,5 @@
 "use client"
 
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { CalendarIcon, Star, MapPin } from "lucide-react"
@@ -70,118 +68,114 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-grow">
-        {/* Development Info */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 text-sm">
-            <p>
-              <strong>Debug Info:</strong> DB Connection: {connectionStatus} | Data Tests: {testResults} | Hotels
-              Loaded: {hotels.length}
+    <>
+      {/* Development Info */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 text-sm">
+          <p>
+            <strong>Debug Info:</strong> DB Connection: {connectionStatus} | Data Tests: {testResults} | Hotels
+            Loaded: {hotels.length}
+          </p>
+          <p className="text-xs mt-1">Check browser console for detailed logs</p>
+        </div>
+      )}
+
+      {/* Hero Section */}
+      <section className="bg-[#003580] text-white py-8 sm:py-12 md:py-16 lg:py-20">
+        <div className="container mx-auto px-4">
+          <div className="text-center max-w-4xl mx-auto">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold mb-4 leading-tight">
+              Book Your Perfect Stay in Yelagiri Hills
+            </h1>
+            <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-6 sm:mb-8 opacity-90">
+              Discover comfort and luxury in the heart of nature
             </p>
-            <p className="text-xs mt-1">Check browser console for detailed logs</p>
           </div>
-        )}
 
-        {/* Hero Section */}
-        <section className="bg-[#003580] text-white py-8 sm:py-12 md:py-16 lg:py-20">
-          <div className="container mx-auto px-4">
-            <div className="text-center max-w-4xl mx-auto">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold mb-4 leading-tight">
-                Book Your Perfect Stay in Yelagiri Hills
-              </h1>
-              <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-6 sm:mb-8 opacity-90">
-                Discover comfort and luxury in the heart of nature
-              </p>
+          {/* Search Form */}
+          <SearchForm />
+        </div>
+      </section>
+
+      {/* Hotel Listings */}
+      <section className="py-8 sm:py-12 md:py-16">
+        <div className="container mx-auto px-4">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-6 sm:mb-8 text-center sm:text-left">
+            Featured Hotels in Yelagiri Hills
+          </h2>
+
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              {[...Array(8)].map((_, i) => (
+                <HotelCardSkeleton key={i} />
+              ))}
             </div>
-
-            {/* Search Form */}
-            <SearchForm />
-          </div>
-        </section>
-
-        {/* Hotel Listings */}
-        <section className="py-8 sm:py-12 md:py-16">
-          <div className="container mx-auto px-4">
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-6 sm:mb-8 text-center sm:text-left">
-              Featured Hotels in Yelagiri Hills
-            </h2>
-
-            {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-                {[...Array(8)].map((_, i) => (
-                  <HotelCardSkeleton key={i} />
-                ))}
-              </div>
-            ) : hotels.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-                {hotels.map((hotel) => (
-                  <HotelCard key={hotel.id} hotel={hotel} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-lg mx-auto">
-                  <h3 className="text-lg font-semibold text-red-800 mb-2">No Hotels Found</h3>
-                  <p className="text-red-700 text-sm mb-4">
-                    {connectionStatus === "Failed"
-                      ? "Database connection failed. Please check your Supabase configuration."
-                      : testResults === "Failed"
-                        ? "Database is connected but tables appear to be empty. Please run the data insertion script."
-                        : "No featured hotels available. The database might be empty."}
+          ) : hotels.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              {hotels.map((hotel) => (
+                <HotelCard key={hotel.id} hotel={hotel} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-lg mx-auto">
+                <h3 className="text-lg font-semibold text-red-800 mb-2">No Hotels Found</h3>
+                <p className="text-red-700 text-sm mb-4">
+                  {connectionStatus === "Failed"
+                    ? "Database connection failed. Please check your Supabase configuration."
+                    : testResults === "Failed"
+                      ? "Database is connected but tables appear to be empty. Please run the data insertion script."
+                      : "No featured hotels available. The database might be empty."}
+                </p>
+                <div className="bg-red-100 p-3 rounded text-xs text-red-600">
+                  <p>
+                    <strong>Next Steps:</strong>
                   </p>
-                  <div className="bg-red-100 p-3 rounded text-xs text-red-600">
-                    <p>
-                      <strong>Next Steps:</strong>
-                    </p>
-                    <ol className="list-decimal list-inside mt-1 space-y-1">
-                      <li>Go to your Supabase project dashboard</li>
-                      <li>Open the SQL Editor</li>
-                      <li>
-                        Run the script: <code>scripts/05-insert-data-step-by-step.sql</code>
-                      </li>
-                      <li>Refresh this page</li>
-                    </ol>
-                  </div>
+                  <ol className="list-decimal list-inside mt-1 space-y-1">
+                    <li>Go to your Supabase project dashboard</li>
+                    <li>Open the SQL Editor</li>
+                    <li>
+                      Run the script: <code>scripts/05-insert-data-step-by-step.sql</code>
+                    </li>
+                    <li>Refresh this page</li>
+                  </ol>
                 </div>
               </div>
-            )}
-          </div>
-        </section>
+            </div>
+          )}
+        </div>
+      </section>
 
-        {/* About Yelagiri */}
-        <section className="py-8 sm:py-12 md:py-16 bg-gray-50">
-          <div className="container mx-auto px-4">
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-6 sm:mb-8 text-center">
-              Discover Yelagiri Hills
-            </h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12 items-center">
-              <div className="order-2 lg:order-1">
-                <p className="text-sm sm:text-base text-gray-700 mb-4 sm:mb-6 leading-relaxed">
-                  Yelagiri Hills is a serene hill station in Tamil Nadu, known for its pleasant climate, scenic beauty,
-                  and various attractions. From trekking and paragliding to fruit orchards and a beautiful lake,
-                  Yelagiri offers a perfect getaway for nature lovers and adventure enthusiasts.
-                </p>
-                <Link href="/about">
-                  <Button className="bg-[#0071C2] hover:bg-[#005999] text-white w-full sm:w-auto">
-                    Learn More About Yelagiri
-                  </Button>
-                </Link>
-              </div>
-              <div className="order-1 lg:order-2">
-                <img
-                  src="/placeholder.svg?height=300&width=500"
-                  alt="Yelagiri Hills"
-                  className="w-full h-48 sm:h-56 md:h-64 lg:h-72 object-cover rounded-lg shadow-lg"
-                />
-              </div>
+      {/* About Yelagiri */}
+      <section className="py-8 sm:py-12 md:py-16 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-6 sm:mb-8 text-center">
+            Discover Yelagiri Hills
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12 items-center">
+            <div className="order-2 lg:order-1">
+              <p className="text-sm sm:text-base text-gray-700 mb-4 sm:mb-6 leading-relaxed">
+                Yelagiri Hills is a serene hill station in Tamil Nadu, known for its pleasant climate, scenic beauty,
+                and various attractions. From trekking and paragliding to fruit orchards and a beautiful lake,
+                Yelagiri offers a perfect getaway for nature lovers and adventure enthusiasts.
+              </p>
+              <Link href="/about">
+                <Button className="bg-[#0071C2] hover:bg-[#005999] text-white w-full sm:w-auto">
+                  Learn More About Yelagiri
+                </Button>
+              </Link>
+            </div>
+            <div className="order-1 lg:order-2">
+              <img
+                src="/placeholder.svg?height=300&width=500"
+                alt="Yelagiri Hills"
+                className="w-full h-48 sm:h-56 md:h-64 lg:h-72 object-cover rounded-lg shadow-lg"
+              />
             </div>
           </div>
-        </section>
-      </main>
-      <Footer />
-    </div>
+        </div>
+      </section>
+    </>
   )
 }
 

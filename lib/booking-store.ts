@@ -1,4 +1,4 @@
-interface BookingData {
+export interface BookingData {
   hotelId: string
   hotelName: string
   roomId: string
@@ -8,10 +8,13 @@ interface BookingData {
   checkOutDate: Date
   guests: number
   nights: number
+  baseAmount: number
+  taxRate: number
+  taxAmount: number
   totalPrice: number
 }
 
-const BOOKING_STORAGE_KEY = "yelagiri_booking_data"
+const BOOKING_STORAGE_KEY = "bookingData"
 
 export function setBookingData(data: BookingData): void {
   if (typeof window !== "undefined") {

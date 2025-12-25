@@ -1,7 +1,5 @@
 "use client"
 
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { X, Plus, Building, MapPin, Star, Home } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 
 interface PropertyFormData {
@@ -143,10 +141,9 @@ const AREAS = [
 const CATEGORIES = [
   { value: "luxury", label: "Luxury Resort" },
   { value: "budget", label: "Budget Hotel" },
-  { value: "boutique", label: "Boutique Hotel" },
   { value: "family", label: "Family Resort" },
-  { value: "business", label: "Business Hotel" },
   { value: "eco", label: "Eco Resort" },
+  { value: "homestay", label: "Family Home" },
 ]
 
 const ROOM_TYPES = [
@@ -202,6 +199,22 @@ export default function ListPropertyPage() {
   const [formErrors, setFormErrors] = useState<string[]>([])
   const [showRoomDialog, setShowRoomDialog] = useState(false)
   const [editingRoomIndex, setEditingRoomIndex] = useState<number | null>(null)
+
+  // Auto-fill owner info
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        setFormData(prev => ({
+          ...prev,
+          owner_name: session.user.user_metadata?.full_name || "",
+          owner_email: session.user.email || "",
+        }))
+      }
+    }
+    fetchUser()
+  }, [])
+
   const [currentRoom, setCurrentRoom] = useState<IndividualRoom>({
     id: "",
     room_name: "",
@@ -346,18 +359,17 @@ export default function ListPropertyPage() {
         food_delivery_details: formData.food_delivery_details,
       }
 
+      // Remove .select() to avoid RLS policy errors if user cannot read their own submission immediately
       const { error } = await supabase.from("property_submissions").insert([propertyData])
 
       if (error) {
-        console.error("Error submitting property:", error)
-        alert("Error submitting property. Please try again.")
-        return
+        throw error
       }
 
       setSubmitSuccess(true)
-    } catch (error) {
-      console.error("Error:", error)
-      alert("Error submitting property. Please try again.")
+    } catch (error: any) {
+      console.error("Error submitting property:", error)
+      alert(`Error submitting property: ${error.message || "Unknown error"}. Please try again.`)
     } finally {
       setIsSubmitting(false)
     }
@@ -367,16 +379,17 @@ export default function ListPropertyPage() {
     const errors = validateForm(currentStep, formData)
     if (errors.length > 0) {
       setFormErrors(errors)
+      window.scrollTo({ top: 0, behavior: "smooth" })
       return
     }
     setFormErrors([])
     setCurrentStep((prev) => Math.min(4, prev + 1))
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   if (submitSuccess) {
     return (
       <div className="flex flex-col min-h-screen">
-        <Header />
         <main className="flex-grow flex items-center justify-center py-12">
           <Card className="max-w-md mx-auto">
             <CardContent className="text-center p-8">
@@ -394,14 +407,12 @@ export default function ListPropertyPage() {
             </CardContent>
           </Card>
         </main>
-        <Footer />
       </div>
     )
   }
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="bg-[#003580] text-white py-12">
@@ -419,9 +430,8 @@ export default function ListPropertyPage() {
                 {[1, 2, 3, 4].map((step) => (
                   <div key={step} className="flex items-center">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                        currentStep >= step ? "bg-[#0071C2] text-white" : "bg-gray-300 text-gray-600"
-                      }`}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= step ? "bg-[#0071C2] text-white" : "bg-gray-300 text-gray-600"
+                        }`}
                     >
                       {step}
                     </div>
@@ -893,7 +903,6 @@ export default function ListPropertyPage() {
           </div>
         </section>
       </main>
-      <Footer />
 
       {/* Room Management Dialog */}
       <Dialog open={showRoomDialog} onOpenChange={setShowRoomDialog}>

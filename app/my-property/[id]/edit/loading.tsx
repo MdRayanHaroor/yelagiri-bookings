@@ -1,13 +1,9 @@
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export default function EditPropertyLoading() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
-
       <main className="flex-grow py-8 px-4">
         <div className="container mx-auto max-w-2xl">
           <Skeleton className="h-10 w-48 mb-4" />
@@ -28,8 +24,6 @@ export default function EditPropertyLoading() {
           </Card>
         </div>
       </main>
-
-      <Footer />
     </div>
   )
 }

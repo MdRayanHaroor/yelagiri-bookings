@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -163,7 +161,6 @@ export default function HotelsPage() {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
-        <Header />
         <main className="flex-grow">
           <div className="bg-[#003580] text-white py-12">
             <div className="container mx-auto px-4 text-center">
@@ -186,15 +183,12 @@ export default function HotelsPage() {
             </div>
           </div>
         </main>
-        <Footer />
       </div>
     )
   }
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
-
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="bg-[#003580] text-white py-12">
@@ -425,8 +419,6 @@ export default function HotelsPage() {
           </div>
         </div>
       </main>
-
-      <Footer />
     </div>
   )
 }

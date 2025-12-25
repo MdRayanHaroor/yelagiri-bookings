@@ -4,8 +4,6 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -137,11 +135,9 @@ export default function EditPropertyPage({ params }: { params: { id: string } })
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
-        <Header />
         <main className="flex-grow flex items-center justify-center">
           <p className="text-gray-600">Loading property details...</p>
         </main>
-        <Footer />
       </div>
     )
   }
@@ -149,19 +145,15 @@ export default function EditPropertyPage({ params }: { params: { id: string } })
   if (!hotel || !formData) {
     return (
       <div className="flex flex-col min-h-screen">
-        <Header />
         <main className="flex-grow flex items-center justify-center">
           <p className="text-red-600">Property not found</p>
         </main>
-        <Footer />
       </div>
     )
   }
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
-
       <main className="flex-grow py-8 px-4">
         <div className="container mx-auto max-w-2xl">
           {/* Back Button */}
@@ -310,8 +302,6 @@ export default function EditPropertyPage({ params }: { params: { id: string } })
           </Card>
         </div>
       </main>
-
-      <Footer />
     </div>
   )
 }

@@ -1,7 +1,5 @@
 "use client"
 
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,7 +9,6 @@ import { MapPin, Phone, Mail, Clock, Send } from "lucide-react"
 export default function ContactPage() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="bg-[#003580] text-white py-8 sm:py-12 md:py-16">
@@ -199,7 +196,6 @@ export default function ContactPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </div>
   )
 }

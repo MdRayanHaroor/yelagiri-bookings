@@ -110,7 +110,17 @@ export function HotelDetailClient({ hotel, rooms, reviews }: HotelDetailClientPr
           const checkIn = new Date(checkInDate)
           const checkOut = new Date(checkOutDate)
           const nights = differenceInDays(checkOut, checkIn)
-          const totalPrice = selectedRoomData.base_price * nights * Math.ceil(1 + Math.ceil(Number(guests) / 2) / 2)
+
+          // Calculate pricing
+          const baseAmount = selectedRoomData.base_price * nights
+          let taxRate = 0.12 // Default 12%
+          if (selectedRoomData.base_price > 7500) {
+            taxRate = 0.18
+          } else if (selectedRoomData.base_price <= 1000) {
+            taxRate = 0
+          }
+          const taxAmount = Math.round(baseAmount * taxRate)
+          const totalPrice = baseAmount + taxAmount
 
           setBookingData({
             hotelId: hotel.id,
@@ -122,6 +132,9 @@ export function HotelDetailClient({ hotel, rooms, reviews }: HotelDetailClientPr
             checkOutDate: checkOut,
             guests: Number(guests),
             nights,
+            baseAmount,
+            taxRate,
+            taxAmount,
             totalPrice,
           })
         }
@@ -136,7 +149,17 @@ export function HotelDetailClient({ hotel, rooms, reviews }: HotelDetailClientPr
         const checkIn = new Date(checkInDate)
         const checkOut = new Date(checkOutDate)
         const nights = differenceInDays(checkOut, checkIn)
-        const totalPrice = selectedRoomData.base_price * nights * Math.ceil(1 + Math.ceil(Number(guests) / 2) / 2)
+
+        // Calculate pricing
+        const baseAmount = selectedRoomData.base_price * nights
+        let taxRate = 0.12 // Default 12%
+        if (selectedRoomData.base_price > 7500) {
+          taxRate = 0.18
+        } else if (selectedRoomData.base_price <= 1000) {
+          taxRate = 0
+        }
+        const taxAmount = Math.round(baseAmount * taxRate)
+        const totalPrice = baseAmount + taxAmount
 
         setBookingData({
           hotelId: hotel.id,
@@ -148,6 +171,9 @@ export function HotelDetailClient({ hotel, rooms, reviews }: HotelDetailClientPr
           checkOutDate: checkOut,
           guests: Number(guests),
           nights,
+          baseAmount,
+          taxRate,
+          taxAmount,
           totalPrice,
         })
       }

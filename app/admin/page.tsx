@@ -1,7 +1,5 @@
 "use client"
 
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -310,21 +308,18 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
-        <Header />
         <main className="flex-grow flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0071C2] mx-auto mb-4"></div>
             <p>Loading admin dashboard...</p>
           </div>
         </main>
-        <Footer />
       </div>
     )
   }
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="bg-[#003580] text-white py-8">
@@ -644,7 +639,6 @@ export default function AdminDashboard() {
           </div>
         </section>
       </main>
-      <Footer />
 
       {/* Submission Details Dialog */}
       <Dialog open={showSubmissionDialog} onOpenChange={setShowSubmissionDialog}>
@@ -845,7 +839,7 @@ export default function AdminDashboard() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   )
 }
 
